@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- views -->
+
+    <record id="migrated_hotel_views_form" model="ir.ui.view">
+        <field name="name">migrated_hotel_form</field>
+        <field name="model">migrated.hotel</field>
+        <field name="arch" type="xml">
+            <form string="Hotel Remote Node">
+                <sheet>
+                    <label for="name" class="oe_edit_only"/>
+                    <h1>
+                        <field name="name" class="oe_inline" />
+                    </h1>
+                    <notebook>
+                        <page string="Node Configuration" name="api">
+                            <group colspan="4" col="4">
+                                <field name="odoo_host" colspan="2"/>
+                                <field name="odoo_db" colspan="2"/>
+                                <field name="odoo_user" colspan="2"/>
+                                <field name="odoo_password" colspan="2" password="1"/>
+                                <field name="odoo_protocol" colspan="2" readonly="1" force_save="1"/>
+                                <field name="odoo_port" colspan="2" readonly="1" force_save="1"/>
+                                <field name="odoo_version" colspan="2" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                    <notebook>
+                        <page name="partners" string="Users and Partners" attrs="{'invisible':[('id','=',False)]}">
+                            <group>
+                                <button name="action_synchronize_res_users"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Synchronize Users"
+                                        confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
+                                <button name="action_synchronize_res_users_3x_performance"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Synchronize Users (performance test)"
+                                        confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="migrated_hotel_views_tree" model="ir.ui.view">
+        <field name="name">migrated_hotel_views_tree</field>
+        <field name="model">migrated.hotel</field>
+        <field name="arch" type="xml">
+            <tree string="Remote Nodes">
+                <field name="name"/>
+                <field name="odoo_host"/>
+                <field name="odoo_version"/>
+                <field name="odoo_db"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- actions -->
+
+    <record id="migrated_hotel_action" model="ir.actions.act_window">
+        <field name="name">Hotel Remote Node</field>
+        <field name="res_model">migrated.hotel</field>
+        <field name="view_type">form</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- menus -->
+
+    <menuitem id="menu_migrated_hotel_root"
+        parent="hotel.hotel_configuration_menu"
+        name="Hotel Migration"
+        sequence="90"/>
+
+    <menuitem id="menu_migrated_hotel"
+        name="Remote Nodes"
+        sequence="1"
+        parent="menu_migrated_hotel_root"
+        action="migrated_hotel_action"/>
+
+</odoo>
