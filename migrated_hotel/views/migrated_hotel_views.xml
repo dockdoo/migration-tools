@@ -40,6 +40,13 @@
                                         string="Synchronize Users (performance test)"
                                         confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
                             </group>
+                            <group>
+                                <button name="action_migrate_res_partners"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Import Partners"
+                                        confirm="Import Partners automatically merge Partners in this Node. Do you want to proceed?"/>
+                            </group>
                         </page>
                     </notebook>
                 </sheet>
