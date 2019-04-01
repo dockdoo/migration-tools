@@ -1,6 +1,7 @@
 # Copyright 2019  Pablo Q. Barriuso
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+import time
 import logging
 import urllib
 import odoorpc.odoo
@@ -23,6 +24,10 @@ class MigratedHotel(models.Model):
     odoo_protocol = fields.Selection([('jsonrpc+ssl', 'jsonrpc+ssl')],
                                      'Protocol', required=True, default='jsonrpc+ssl')
     odoo_version = fields.Char()
+
+    # performance metrics
+    time_migration_partners = fields.Float('Partners migration Elapsed time',
+                                           readonly=True)
 
     @api.model
     def create(self, vals):
@@ -73,7 +78,6 @@ class MigratedHotel(models.Model):
     @api.multi
     def action_synchronize_res_users_3x_performance(self):
         self.ensure_one()
-        import wdb; wdb.set_trace()
         try:
             noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
             noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
@@ -107,7 +111,58 @@ class MigratedHotel(models.Model):
             raise ValidationError(err)
 
     @api.multi
+    def _prepare_remote_data(self, rpc_res_partner):
+        # prepare some related fields
+        country_id = self.env['res.country'].search([
+            ('code', '=', rpc_res_partner.country_id.code)
+        ]).id or None
+        state_id = self.env['res.country.state'].search([
+            ('country_id', '=', country_id),
+            ('code', '=', rpc_res_partner.state_id.code)
+        ]).id or None
+        category_id = self.env['res.partner.category'].search([
+            ('name', '=', rpc_res_partner.category_id.name),
+            ('parent_id.name', '=', rpc_res_partner.category_id.parent_id.name),
+        ]).id or None
+        # use VAT of your parent_id
+        VAT =  ''
+        if not rpc_res_partner.parent_id:
+            VAT = rpc_res_partner.vat
+        else:
+            VAT = rpc_res_partner.parent_id.vat
+        return {
+            'lastname': rpc_res_partner.lastname,
+            'firstname': rpc_res_partner.firstname,
+            'phone': rpc_res_partner.phone,
+            'mobile': rpc_res_partner.mobile,
+            # Odoo 11 unknown fields: fax
+            'email': rpc_res_partner.email,
+            'website': rpc_res_partner.website,
+            'lang': rpc_res_partner.lang,
+            'is_company': rpc_res_partner.is_company,
+            'type': rpc_res_partner.type,
+            'street': rpc_res_partner.street,
+            'street2': rpc_res_partner.street2,
+            'zip_id': rpc_res_partner.zip_id.id,
+            'zip': rpc_res_partner.zip,
+            'city': rpc_res_partner.city,
+            'state_id': state_id,
+            'country_id': country_id,
+            'comment': rpc_res_partner.comment,
+            'document_type': rpc_res_partner.documenttype,
+            'document_number': rpc_res_partner.poldocument,
+            'document_expedition_date': rpc_res_partner.polexpedition,
+            'gender': rpc_res_partner.gender,
+            'birthdate_date': rpc_res_partner.birthdate_date,
+            'code_ine_id': rpc_res_partner.code_ine.id,
+            # 'category_id': [[6, false, category_id]],
+            'unconfirmed': rpc_res_partner.unconfirmed,
+            'vat': VAT,
+        }
+
+    @api.multi
     def action_migrate_res_partners(self):
+        start_time = time.time()
         self.ensure_one()
         try:
             noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
@@ -116,57 +171,60 @@ class MigratedHotel(models.Model):
             raise ValidationError(err)
 
         try:
-            # import remote partners without contacts (parent_id is not set)
+            folio_ids = noderpc.env['hotel.folio'].search_read(
+                [('state', '!=', 'out')],
+                ['partner_id']
+            )
+            partners_folios_set = [x['partner_id'][0] for x in folio_ids]
+            cardex_ids = noderpc.env['cardex'].search_read(
+                [],
+                ['partner_id']
+            )
+            partners_cardex_set = [x['partner_id'][0] for x in cardex_ids]
+            invoice_ids = noderpc.env['account.invoice'].search_read(
+                [],
+                ['partner_id']
+            )
+            partners_invoice_set = [x['partner_id'][0] for x in invoice_ids]
+            # set of remote partners of interest
+            remote_partner_set_ids = list(set().union(
+                partners_folios_set,
+                partners_cardex_set,
+                partners_invoice_set
+            ))
+            # First, import remote partners without contacts (parent_id is not set)
             remote_partner_ids = noderpc.env['res.partner'].search([
+                ('id', 'in', remote_partner_set_ids),
                 ('parent_id', '=', False),
-            ])
+                ('user_ids', '=', False),
+            ], limit=100)
             for remote_res_partner_id in remote_partner_ids:
                 rpc_res_partner = noderpc.env['res.partner'].browse(remote_res_partner_id)
-                # prepare some related fields
-                country_id = self.env['res.country'].search([
-                    ('code', '=', rpc_res_partner.country_id.code)
-                ]).id or None
-                state_id = self.env['res.country.state'].search([
-                    ('country_id', '=', country_id),
-                    ('code', '=', rpc_res_partner.state_id.code)
-                ]).id or None
-                category_id = self.env['res.partner.category'].search([
-                    ('name', '=', rpc_res_partner.category_id.name),
-                    ('parent_id.name', '=', rpc_res_partner.category_id.parent_id.name),
-                ]).id or None
-                import wdb; wdb.set_trace()
-                migrated_res_partner = self.env['res.partner'].create({
-                    'lastname': rpc_res_partner.lastname,
-                    'firstname': rpc_res_partner.firstname,
-                    'phone': rpc_res_partner.phone,
-                    'mobile': rpc_res_partner.mobile,
-                    # Odoo 11 unknown fields: fax
-                    'email': rpc_res_partner.email,
-                    'website': rpc_res_partner.website,
-                    'lang': rpc_res_partner.lang,
-                    'is_company': rpc_res_partner.is_company,
-                    'type': rpc_res_partner.type,
-                    'street': rpc_res_partner.street,
-                    'street2': rpc_res_partner.street2,
-                    'zip_id': rpc_res_partner.zip_id.id,
-                    'zip': rpc_res_partner.zip,
-                    'city': rpc_res_partner.city,
-                    'state_id': state_id,
-                    'country_id': country_id,
-                    'comment': rpc_res_partner.comment,
-                    'document_type': rpc_res_partner.documenttype,
-                    'document_number': rpc_res_partner.poldocument,
-                    'document_expedition_date': rpc_res_partner.polexpedition,
-                    'gender': rpc_res_partner.gender,
-                    'birthdate_date': rpc_res_partner.birthdate_date,
-                    'code_ine_id': rpc_res_partner.code_ine.id,
-                    'category_id': category_id,
-                    'unconfirmed': rpc_res_partner.unconfirmed,
-                })
+                vals = self._prepare_remote_data(rpc_res_partner)
+                migrated_res_partner = self.env['res.partner'].create(vals)
                 migrated_res_partner.remote_id = remote_res_partner_id
 
-                _logger.info('User #%s migrated res.partner with ID: [%s, %s]',
+                _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
                                  self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+
+            # # Second, import remote partners with contacts (already created in the previous step)
+            # remote_partner_ids = noderpc.env['res.partner'].search([
+            #     ('id', 'in', remote_partner_set_ids),
+            #     ('parent_id', '!=', False),
+            #     ('user_ids', '=', False),
+            # ])
+            # for remote_res_partner_id in remote_partner_ids:
+            #     rpc_res_partner = noderpc.env['res.partner'].browse(remote_res_partner_id)
+            #     vals = self._prepare_remote_data(rpc_res_partner)
+            #     migrated_res_partner = self.env['res.partner'].create(vals)
+            #     migrated_res_partner.remote_id = remote_res_partner_id
+            #
+            #     _logger.info('User #%s migrated res.partner with ID: [%s, %s]',
+            #                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+
+            time_migration_partners = (time.time() - start_time)
+            _logger.info('action_migrate_res_partners elapsed time: %s seconds',
+                         time_migration_partners)
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
