@@ -28,19 +28,27 @@
                     </notebook>
                     <notebook>
                         <page name="partners" string="Users and Partners" attrs="{'invisible':[('id','=',False)]}">
-                            <group>
-                                <button name="action_synchronize_res_users"
-                                        type="object"
-                                        class="oe_highlight"
-                                        string="Synchronize Users"
-                                        confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
-                            </group>
-                            <group>
+                            <group col="4">
                                 <button name="action_migrate_res_partners"
                                         type="object"
                                         class="oe_highlight"
                                         string="Import Partners"
                                         confirm="Import Partners automatically merge Partners in this Node. Do you want to proceed?"/>
+                                <button name="action_migrate_products"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Import Products"
+                                        confirm="Import Products needed for migrating the reservations. Do you want to proceed?"/>
+                                <button name="action_migrate_reservation"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Import Reservations"
+                                        confirm="Import Reservations to this Node. Do you want to proceed?"/>
+                                <button name="action_synchronize_res_users"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Synchronize Users"
+                                        confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
                             </group>
                         </page>
                     </notebook>
