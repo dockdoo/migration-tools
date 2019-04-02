@@ -113,7 +113,7 @@ class MigratedHotel(models.Model):
             'type': rpc_res_partner['type'],
             'street': rpc_res_partner['street'],
             'street2': rpc_res_partner['street2'],
-            'zip_id': rpc_res_partner['zip_id'] and rpc_res_partner['zip_id'][0],
+            # 'zip_id': rpc_res_partner['zip_id'] and rpc_res_partner['zip_id'][0],
             'zip': rpc_res_partner['zip'],
             'city': rpc_res_partner['city'],
             'state_id': state_id,
@@ -250,3 +250,14 @@ class MigratedHotel(models.Model):
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
+
+
+    @api.multi
+    def action_clean_up(self):
+        start_time = time.time()
+        self.ensure_one()
+        # disable Odoo 10 products
+        # disable specific closure_reason created for migration
+        time_migration_partners = (time.time() - start_time) / 60
+        _logger.info('action_clean_up elapsed time: %s minutes',
+                     time_migration_partners)
