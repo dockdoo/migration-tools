@@ -34,11 +34,6 @@
                                         class="oe_highlight"
                                         string="Synchronize Users"
                                         confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
-                                <button name="action_synchronize_res_users_3x_performance"
-                                        type="object"
-                                        class="oe_highlight"
-                                        string="Synchronize Users (performance test)"
-                                        confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
                             </group>
                             <group>
                                 <button name="action_migrate_res_partners"
