@@ -204,20 +204,27 @@ class MigratedHotel(models.Model):
                 ('user_ids', '=', False),
             ])
             for remote_res_partner_id in remote_partner_ids:
-                rpc_res_partner = noderpc.env['res.partner'].search_read(
-                    [('id', '=', remote_res_partner_id)],
-                )[0]
-                vals = self._prepare_remote_data(
-                    rpc_res_partner,
-                    country_map_ids,
-                    country_state_map_ids,
-                    category_map_ids,
-                )
-                migrated_res_partner = self.env['res.partner'].create(vals)
-                migrated_res_partner.remote_id = remote_res_partner_id
+                try:
+                    rpc_res_partner = noderpc.env['res.partner'].search_read(
+                        [('id', '=', remote_res_partner_id)],
+                    )[0]
+                    vals = self._prepare_remote_data(
+                        rpc_res_partner,
+                        country_map_ids,
+                        country_state_map_ids,
+                        category_map_ids,
+                    )
+                    migrated_res_partner = self.env['res.partner'].create(vals)
+                    migrated_res_partner.remote_id = remote_res_partner_id
 
-                _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                 self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+                    _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
+                                     self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+
+                except (ValueError, ValidationError) as err:
+                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR: (%s)',
+                                  remote_res_partner_id, err)
+                    continue
+
 
             # Second, import remote partners with contacts (already created in the previous step)
             _logger.info("Migrating 'res.partners' with parent_id...")
@@ -254,6 +261,8 @@ class MigratedHotel(models.Model):
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
+        else:
+            noderpc.logout()
 
     @api.multi
     def action_migrate_products(self):
@@ -301,6 +310,8 @@ class MigratedHotel(models.Model):
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
+        else:
+            noderpc.logout()
 
     @api.multi
     def action_clean_up(self):
