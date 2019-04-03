@@ -76,30 +76,27 @@ class MigratedHotel(models.Model):
             raise ValidationError(err)
 
     @api.multi
-    def _prepare_remote_data(
-            self,
-            rpc_res_partner,
-            country_map_ids,
-            country_state_map_ids,
-            category_map_ids):
-        # prepare country related fields
+    def _prepare_remote_data(self, rpc_res_partner, country_map_ids,
+                             country_state_map_ids, category_map_ids):
+        # prepare country_id related fields
         remote_id = rpc_res_partner['country_id'] and rpc_res_partner['country_id'][0]
         country_id = remote_id and country_map_ids.get(remote_id) or None
+        # prepare state_id related fields
         remote_id = rpc_res_partner['state_id'] and rpc_res_partner['state_id'][0]
         state_id = remote_id and country_state_map_ids.get(remote_id) or None
-        # prepare category related fields
+        # prepare category_ids related fields
         remote_ids = rpc_res_partner['category_id'] and rpc_res_partner['category_id']
         category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
-
-        # use VAT of your parent_id
-        VAT =  ''
-        if not rpc_res_partner['parent_id']:
-            VAT = rpc_res_partner['vat']
-        else:
-            # remote partners without parent_id are migrated first
-            VAT = self.env['res.partner'].search([
-                ('remote_id', '=', rpc_res_partner['parent_id'][0])
-            ]).vat or None
+        # prepare parent_id related fields
+        parent_id = rpc_res_partner['parent_id']
+        VAT =  rpc_res_partner['vat']
+        if parent_id:
+            res_partner = self.env['res.partner'].search([
+                ('remote_id', '=', parent_id[0])
+            ])
+            parent_id = res_partner.id
+            VAT = res_partner.vat
+        # TODO: prepare child_ids related fields
         return {
             'lastname': rpc_res_partner['lastname'],
             'firstname': rpc_res_partner['firstname'],
@@ -127,6 +124,7 @@ class MigratedHotel(models.Model):
             'code_ine_id': rpc_res_partner['code_ine'] and rpc_res_partner['code_ine'][0],
             'category_id': category_ids and [[6, False, category_ids]] or None,
             'unconfirmed': rpc_res_partner['unconfirmed'],
+            'parent_id': parent_id,
             'vat': VAT,
         }
 
