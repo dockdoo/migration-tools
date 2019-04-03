@@ -5,7 +5,7 @@ import time
 import logging
 import urllib
 import odoorpc.odoo
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api
 
 _logger = logging.getLogger(__name__)
@@ -227,20 +227,26 @@ class MigratedHotel(models.Model):
                 ('user_ids', '=', False),
             ])
             for remote_res_partner_id in remote_partner_ids:
-                rpc_res_partner = noderpc.env['res.partner'].search_read(
-                    [('id', '=', remote_res_partner_id)],
-                )[0]
-                vals = self._prepare_remote_data(
-                    rpc_res_partner,
-                    country_map_ids,
-                    country_state_map_ids,
-                    category_map_ids,
-                )
-                migrated_res_partner = self.env['res.partner'].create(vals)
-                migrated_res_partner.remote_id = remote_res_partner_id
+                try:
+                    rpc_res_partner = noderpc.env['res.partner'].search_read(
+                        [('id', '=', remote_res_partner_id)],
+                    )[0]
+                    vals = self._prepare_remote_data(
+                        rpc_res_partner,
+                        country_map_ids,
+                        country_state_map_ids,
+                        category_map_ids,
+                    )
+                    migrated_res_partner = self.env['res.partner'].create(vals)
+                    migrated_res_partner.remote_id = remote_res_partner_id
 
-                _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                 self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+                    _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
+
+                                     self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+                except (ValueError, ValidationError) as err:
+                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR: (%s)',
+                                  remote_res_partner_id, err)
+                    continue
 
             time_migration_partners = (time.time() - start_time) / 60
             _logger.info('action_migrate_res_partners elapsed time: %s minutes',
@@ -249,6 +255,52 @@ class MigratedHotel(models.Model):
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
 
+    @api.multi
+    def action_migrate_products(self):
+        self.ensure_one()
+        try:
+            noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
+            noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+
+        try:
+            # prepare products of interest
+            _logger.info("Preparing 'product.product' of interest...")
+            hotel_room_type_ids = noderpc.env['hotel.virtual.room'].search_read(
+                [],
+                ['product_id']
+            )
+            hotel_room_type_set = [x['product_id'][0] for x in hotel_room_type_ids]
+            hotel_room_ids = noderpc.env['hotel.room'].search_read(
+                [],
+                ['product_id']
+            )
+            hotel_room_set = [x['product_id'][0] for x in hotel_room_ids]
+            hotel_room_amenities_ids = noderpc.env['hotel.room.amenities'].search_read(
+                [],
+                ['product_tmpl_id']
+            )
+            hotel_room_amenities_set = [x['product_tmpl_id'][0] for x in hotel_room_amenities_ids]
+
+            # set of remote products of NO interest
+            remote_products_set_ids = list(set().union(
+                hotel_room_type_set,
+                hotel_room_set,
+                hotel_room_amenities_set
+            ))
+            # First, import remote partners without contacts (parent_id is not set)
+            _logger.info("Migrating 'product.products'...")
+            remote_product_ids = noderpc.env['product.product'].search_read([
+                ('id', 'not in', remote_products_set_ids),
+            ])
+            product_product_ids = noderpc.env['sale.order.line'].search_read(
+                [],
+                ['product_id']
+            )
+
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
 
     @api.multi
     def action_clean_up(self):
