@@ -2,3 +2,4 @@
 
 from . import migrated_hotel
 from . import inherited_res_partner
+from . import inherited_product_template

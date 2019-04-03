@@ -225,7 +225,6 @@ class MigratedHotel(models.Model):
                                   remote_res_partner_id, err)
                     continue
 
-
             # Second, import remote partners with contacts (already created in the previous step)
             _logger.info("Migrating 'res.partners' with parent_id...")
             remote_partner_ids = noderpc.env['res.partner'].search([
@@ -266,6 +265,7 @@ class MigratedHotel(models.Model):
 
     @api.multi
     def action_migrate_products(self):
+        start_time = time.time()
         self.ensure_one()
         try:
             noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
@@ -299,14 +299,42 @@ class MigratedHotel(models.Model):
                 hotel_room_amenities_set
             ))
             # First, import remote partners without contacts (parent_id is not set)
-            _logger.info("Migrating 'product.products'...")
-            remote_product_ids = noderpc.env['product.product'].search_read([
+            _logger.info("Migrating 'product.product'...")
+            remote_product_ids = noderpc.env['product.product'].search([
                 ('id', 'not in', remote_products_set_ids),
             ])
-            product_product_ids = noderpc.env['sale.order.line'].search_read(
-                [],
-                ['product_id']
-            )
+            for remote_product_id in remote_product_ids:
+                try:
+                    rpc_product = noderpc.env['product.product'].search_read(
+                        [('id', '=', remote_product_id)],
+                    )[0]
+                    migrated_product = self.env['product.template'].search([
+                        ('remote_id', '=', remote_product_id)
+                    ]) or None
+                    if not migrated_product:
+                        vals = {
+                            'name': rpc_product['name'],
+                            'list_price': rpc_product['list_price'],
+                            'taxes_id': rpc_product['taxes_id'] and [[6, False, rpc_product['taxes_id']]] or None,
+                            'type': 'service',
+                            'sale_ok': True,
+                            'purchase_ok': False,
+                        }
+                        migrated_product = self.env['product.template'].create(vals)
+                    #
+                    migrated_product.remote_id = remote_product_id
+
+                    _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
+
+                                 self._context.get('uid'), migrated_product.id, remote_product_id)
+                except (ValueError, ValidationError) as err:
+                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR: (%s)',
+                                  remote_product_id, err)
+                    continue
+
+            time_migration_products = (time.time() - start_time) / 60
+            _logger.info('action_migrate_products elapsed time: %s minutes',
+                         time_migration_products)
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
