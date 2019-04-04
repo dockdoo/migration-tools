@@ -7,6 +7,7 @@ import urllib
 import odoorpc.odoo
 from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api
+from odoo.tools import DEFAULT_SERVER_DATE_FORMAT
 
 _logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ class MigratedHotel(models.Model):
     odoo_protocol = fields.Selection([('jsonrpc+ssl', 'jsonrpc+ssl')],
                                      'Protocol', required=True, default='jsonrpc+ssl')
     odoo_version = fields.Char()
+
+    migration_date_d = fields.Date('Migration D-date')
 
     @api.model
     def create(self, vals):
@@ -76,18 +79,18 @@ class MigratedHotel(models.Model):
             raise ValidationError(err)
 
     @api.multi
-    def _prepare_remote_data(self, rpc_res_partner, country_map_ids,
+    def _prepare_partner_remote_data(self, rpc_res_partner, country_map_ids,
                              country_state_map_ids, category_map_ids):
-        # prepare country_id related fields
+        # prepare country_id related field
         remote_id = rpc_res_partner['country_id'] and rpc_res_partner['country_id'][0]
         country_id = remote_id and country_map_ids.get(remote_id) or None
-        # prepare state_id related fields
+        # prepare state_id related field
         remote_id = rpc_res_partner['state_id'] and rpc_res_partner['state_id'][0]
         state_id = remote_id and country_state_map_ids.get(remote_id) or None
-        # prepare category_ids related fields
+        # prepare category_ids related field
         remote_ids = rpc_res_partner['category_id'] and rpc_res_partner['category_id']
         category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
-        # prepare parent_id related fields
+        # prepare parent_id related field
         parent_id = rpc_res_partner['parent_id']
         VAT =  rpc_res_partner['vat']
         if parent_id:
@@ -96,13 +99,13 @@ class MigratedHotel(models.Model):
             ])
             parent_id = res_partner.id
             VAT = res_partner.vat
-        # TODO: prepare child_ids related fields
+        # TODO: prepare child_ids related field
         return {
             'lastname': rpc_res_partner['lastname'],
             'firstname': rpc_res_partner['firstname'],
             'phone': rpc_res_partner['phone'],
             'mobile': rpc_res_partner['mobile'],
-            # Odoo 11 unknown fields: fax
+            # Odoo 11 unknown field: fax
             'email': rpc_res_partner['email'],
             'website': rpc_res_partner['website'],
             'lang': rpc_res_partner['lang'],
@@ -208,7 +211,7 @@ class MigratedHotel(models.Model):
                     rpc_res_partner = noderpc.env['res.partner'].search_read(
                         [('id', '=', remote_res_partner_id)],
                     )[0]
-                    vals = self._prepare_remote_data(
+                    vals = self._prepare_partner_remote_data(
                         rpc_res_partner,
                         country_map_ids,
                         country_state_map_ids,
@@ -237,7 +240,7 @@ class MigratedHotel(models.Model):
                     rpc_res_partner = noderpc.env['res.partner'].search_read(
                         [('id', '=', remote_res_partner_id)],
                     )[0]
-                    vals = self._prepare_remote_data(
+                    vals = self._prepare_partner_remote_data(
                         rpc_res_partner,
                         country_map_ids,
                         country_state_map_ids,
@@ -328,12 +331,185 @@ class MigratedHotel(models.Model):
 
                                  self._context.get('uid'), migrated_product.id, remote_product_id)
                 except (ValueError, ValidationError) as err:
-                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR: (%s)',
+                    _logger.error('ERROR migrating remote product.product with ID remote: [%s] with ERROR: (%s)',
                                   remote_product_id, err)
                     continue
 
             time_migration_products = (time.time() - start_time) / 60
             _logger.info('action_migrate_products elapsed time: %s minutes',
+                         time_migration_products)
+
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+        else:
+            noderpc.logout()
+
+    @api.multi
+    def _prepare_folio_remote_data(self, rpc_hotel_folio, res_users_map_ids, category_map_ids,
+                                   room_type_map_ids, noderpc):
+        # prepare partner_id related field
+        default_res_partner = self.env['res.partner'].search([
+            ('user_ids', 'in', self._context.get('uid'))
+        ])
+        remote_id = rpc_hotel_folio['partner_id'] and rpc_hotel_folio['partner_id'][0]
+        res_partner = self.env['res.partner'].search([
+            ('remote_id', '=', remote_id)
+        ]) or default_res_partner
+        remote_id = rpc_hotel_folio['partner_invoice_id'] and rpc_hotel_folio['partner_invoice_id'][0]
+        res_partner_invoice = self.env['res.partner'].search([
+            ('remote_id', '=', remote_id)
+        ]) or default_res_partner.company_id
+        remote_id = rpc_hotel_folio['user_id'] and rpc_hotel_folio['user_id'][0]
+        res_user_id = remote_id and res_users_map_ids.get(remote_id)
+        # prepare category_ids related field
+        remote_ids = rpc_hotel_folio['segmentation_id'] and rpc_hotel_folio['segmentation_id']
+        category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
+        # prepare default state value
+        default_state = 'confirm'
+
+        vals = {
+            'name': rpc_hotel_folio['name'],
+            'partner_id': res_partner.id,
+            'partner_invoice_id': res_partner_invoice.id,
+            'segmentation_ids': category_ids and [[6, False, category_ids]] or None,
+            'reservation_type': rpc_hotel_folio['reservation_type'],
+            'channel_type': rpc_hotel_folio['channel_type'],
+            'customer_notes': rpc_hotel_folio['wcustomer_notes'],
+            'internal_comment': rpc_hotel_folio['internal_comment'],
+            'state': rpc_hotel_folio['state'] and rpc_hotel_folio['state'] != 'sale' or default_state,
+            'cancelled_reason': rpc_hotel_folio['cancelled_reason'],
+            'date_order': rpc_hotel_folio['date_order'],
+            'user_id': res_user_id,
+            '__last_update': rpc_hotel_folio['__last_update'],
+        }
+        # prepare room_lines related field
+        remote_ids = rpc_hotel_folio['room_lines'] and rpc_hotel_folio['room_lines']
+        hotel_reservations = noderpc.env['hotel.reservation'].search_read(
+            [('id', 'in', remote_ids)],
+        )
+        room_lines_cmds = []
+        for room in hotel_reservations:
+            # 'web sale' reservations after D-date are __not__ migrated with this script
+
+            reservation_line_ids = []
+            remote_ids = room['reservation_lines'] and room['reservation_lines']
+            hotel_reservation_lines = noderpc.env['hotel.reservation.line'].search_read(
+                [('id', 'in', remote_ids)],
+                ['date', 'price']
+            )
+            reservation_line_cmds = []
+            for reservation_line in hotel_reservation_lines:
+                reservation_line_cmds.append((0, False, {
+                    'date': reservation_line['date'],
+                    'price': reservation_line['price'],
+                }))
+            # prepare hotel_room_type related field
+            remote_id = room['virtual_room_id'] and room['virtual_room_id'][0]
+            room_type_id = remote_id and room_type_map_ids.get(remote_id) or None
+            # prepare hotel_room related field
+            # remote_id = room['product_id'] and room['product_id'][0]
+            # room_id = remote_id and room_map_ids.get(remote_id) or None
+            # prepare hotel.folio.room_lines
+            room_lines_cmds.append((0, False, {
+                'room_type_id': room_type_id,
+                # 'room_type_id': room_id,
+                'checkin': fields.Date.from_string(room['checkin']).strftime(
+                    DEFAULT_SERVER_DATE_FORMAT),
+                'checkout': fields.Date.from_string(room['checkout']).strftime(
+                    DEFAULT_SERVER_DATE_FORMAT),
+                'state': room['state'],
+                'cancelled_reason': room['cancelled_reason'],
+                'out_service_description': room['out_service_description'],
+                'adults': room['adults'],
+                'children': room['children'],
+                'reservation_line_ids': reservation_line_cmds,
+            }))
+            vals.update({'room_lines': room_lines_cmds})
+
+        # reservations before D-date are migrated with Odoo 10 products
+
+        # 'direct sale' reservations after D-date are migrated with no products
+
+        return vals
+
+    @api.multi
+    def action_migrate_reservation(self):
+        start_time = time.time()
+        self.ensure_one()
+
+        if not self.migration_date_d:
+            raise ValidationError('Set a Migration D-date before proceed.')
+
+        try:
+            noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
+            noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+
+        try:
+            # prepare res.users ids
+            _logger.info("Mapping local with remote 'res.users' ids...")
+            remote_ids = noderpc.env['res.users'].search([])
+            remote_records = noderpc.env['res.users'].browse(remote_ids)
+            res_users_map_ids = {}
+            for record in remote_records:
+                res_users_id = self.env['res.users'].search([
+                    ('login', '=', record.login),
+                ]).id or self._context.get('uid')
+                res_users_map_ids.update({record.id: res_users_id})
+            # prepare res.partner.category ids
+            _logger.info("Mapping local with remote 'res.partner.category' ids...")
+            remote_ids = noderpc.env['res.partner.category'].search([])
+            remote_records = noderpc.env['res.partner.category'].browse(remote_ids)
+            category_map_ids = {}
+            for record in remote_records:
+                res_partner_category_id = self.env['res.partner.category'].search([
+                    ('name', '=', record.name),
+                    ('parent_id.name', '=', record.parent_id.name),
+                ]).id
+                category_map_ids.update({record.id: res_partner_category_id})
+            # prepare hotel.room.type ids
+            _logger.info("Mapping local with remote 'hotel.room.type' ids...")
+            remote_ids = noderpc.env['hotel.virtual.room'].search([])
+            remote_xml_ids = noderpc.env['hotel.virtual.room'].browse(
+                remote_ids).get_external_id()
+            room_type_map_ids = {}
+            for key, value in remote_xml_ids.items():
+                room_type_id = self.env['ir.model.data'].xmlid_to_res_id(value)
+                room_type_map_ids.update({int(key): room_type_id})
+
+            # prepare reservation of interest
+            _logger.info("Preparing 'hotel.folio' of interest...")
+            remote_hotel_folio_ids = noderpc.env['hotel.folio'].search([])
+            _logger.info("Migrating 'hotel.folio'...")
+            for remote_hotel_folio_id in remote_hotel_folio_ids:
+                try:
+                    rpc_hotel_folio = noderpc.env['hotel.folio'].search_read(
+                        [('id', '=', remote_hotel_folio_id)],
+                    )[0]
+                    migrated_hotel_folio = self.env['hotel.folio'].search([
+                        ('remote_id', '=', remote_hotel_folio_id)
+                    ]) or None
+                    if not migrated_hotel_folio:
+                        vals = self._prepare_folio_remote_data(rpc_hotel_folio,
+                                                               res_users_map_ids,
+                                                               category_map_ids,
+                                                               room_type_map_ids,
+                                                               noderpc)
+                        migrated_hotel_folio = self.env['hotel.folio'].create(vals)
+                    #
+                    migrated_hotel_folio.remote_id = remote_hotel_folio_id
+
+                    _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
+
+                                 self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
+                except (ValueError, ValidationError) as err:
+                    _logger.error('ERROR migrating remote hotel.folio with ID remote: [%s] with ERROR: (%s)',
+                                  remote_hotel_folio_id, err)
+                    continue
+
+            time_migration_products = (time.time() - start_time) / 60
+            _logger.info('action_migrate_reservation elapsed time: %s minutes',
                          time_migration_products)
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:

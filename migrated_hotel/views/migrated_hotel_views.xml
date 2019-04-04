@@ -39,16 +39,21 @@
                                         class="oe_highlight"
                                         string="Import Products"
                                         confirm="Import Products needed for migrating the reservations. Do you want to proceed?"/>
-                                <button name="action_migrate_reservation"
-                                        type="object"
-                                        class="oe_highlight"
-                                        string="Import Reservations"
-                                        confirm="Import Reservations to this Node. Do you want to proceed?"/>
                                 <button name="action_synchronize_res_users"
                                         type="object"
                                         class="oe_highlight"
                                         string="Synchronize Users"
                                         confirm="Synchronize Users automatically assign remote partners ids in this Node. Do you want to proceed?"/>
+                            </group>
+                            <group col="1">
+                                <group colspan="1">
+                                    <field name="migration_date_d"/>
+                                </group>
+                                <button name="action_migrate_reservation" colspan="2"
+                                        type="object"
+                                        class="oe_highlight"
+                                        string="Import reservations crossing the D-date"
+                                        confirm="Import Reservations using D-date as limit for services lines. Do you want to proceed?"/>
                             </group>
                         </page>
                     </notebook>
