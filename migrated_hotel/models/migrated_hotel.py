@@ -346,7 +346,7 @@ class MigratedHotel(models.Model):
 
     @api.multi
     def _prepare_folio_remote_data(self, rpc_hotel_folio, res_users_map_ids, category_map_ids,
-                                   room_type_map_ids, noderpc):
+                                   room_type_map_ids, room_map_ids, noderpc):
         # prepare partner_id related field
         default_res_partner = self.env['res.partner'].search([
             ('user_ids', 'in', self._context.get('uid'))
@@ -390,8 +390,10 @@ class MigratedHotel(models.Model):
         room_lines_cmds = []
         for room in hotel_reservations:
             # 'web sale' reservations after D-date are __not__ migrated with this script
+            if room['channel_type'] == 'web' and fields.Date.from_string(
+                    room['checkin']) >= fields.Date.from_string(self.migration_date_d):
+                continue
 
-            reservation_line_ids = []
             remote_ids = room['reservation_lines'] and room['reservation_lines']
             hotel_reservation_lines = noderpc.env['hotel.reservation.line'].search_read(
                 [('id', 'in', remote_ids)],
@@ -407,12 +409,12 @@ class MigratedHotel(models.Model):
             remote_id = room['virtual_room_id'] and room['virtual_room_id'][0]
             room_type_id = remote_id and room_type_map_ids.get(remote_id) or None
             # prepare hotel_room related field
-            # remote_id = room['product_id'] and room['product_id'][0]
-            # room_id = remote_id and room_map_ids.get(remote_id) or None
+            remote_id = room['product_id'] and room['product_id'][0]
+            room_id = remote_id and room_map_ids.get(remote_id) or None
             # prepare hotel.folio.room_lines
             room_lines_cmds.append((0, False, {
                 'room_type_id': room_type_id,
-                # 'room_type_id': room_id,
+                'room_id': room_id,
                 'checkin': fields.Date.from_string(room['checkin']).strftime(
                     DEFAULT_SERVER_DATE_FORMAT),
                 'checkout': fields.Date.from_string(room['checkout']).strftime(
@@ -426,9 +428,12 @@ class MigratedHotel(models.Model):
             }))
             vals.update({'room_lines': room_lines_cmds})
 
-        # reservations before D-date are migrated with Odoo 10 products
+            # 'direct sale' reservations after D-date are migrated with no products
+            if room['channel_type'] != 'web' and fields.Date.from_string(
+                    room['checkin']) >= fields.Date.from_string(self.migration_date_d):
+                continue
 
-        # 'direct sale' reservations after D-date are migrated with no products
+            # reservations before D-date are migrated with Odoo 10 products
 
         return vals
 
@@ -477,6 +482,17 @@ class MigratedHotel(models.Model):
             for key, value in remote_xml_ids.items():
                 room_type_id = self.env['ir.model.data'].xmlid_to_res_id(value)
                 room_type_map_ids.update({int(key): room_type_id})
+            # prepare hotel.room ids
+            _logger.info("Mapping local with remote 'hotel.room' ids...")
+            remote_ids = noderpc.env['hotel.room'].search([])
+            remote_hotel_rooms = noderpc.env['hotel.room'].browse(remote_ids)
+            room_map_ids = {}
+            # TODO: may be improved with search_read product_id ?
+            for remote_hotel_room in remote_hotel_rooms:
+                remote_xml_id = remote_hotel_room.get_external_id()
+                value = list(remote_xml_id.values())[0]
+                room_id = self.env['ir.model.data'].xmlid_to_res_id(value)
+                room_map_ids.update({remote_hotel_room.product_id.id: room_id})
 
             # prepare reservation of interest
             _logger.info("Preparing 'hotel.folio' of interest...")
@@ -495,6 +511,7 @@ class MigratedHotel(models.Model):
                                                                res_users_map_ids,
                                                                category_map_ids,
                                                                room_type_map_ids,
+                                                               room_map_ids,
                                                                noderpc)
                         migrated_hotel_folio = self.env['hotel.folio'].create(vals)
                     #
@@ -503,7 +520,7 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
 
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
-                except (ValueError, ValidationError) as err:
+                except Exception as err:
                     _logger.error('ERROR migrating remote hotel.folio with ID remote: [%s] with ERROR: (%s)',
                                   remote_hotel_folio_id, err)
                     continue
