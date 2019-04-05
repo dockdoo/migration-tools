@@ -365,7 +365,9 @@ class MigratedHotel(models.Model):
         remote_ids = rpc_hotel_folio['segmentation_id'] and rpc_hotel_folio['segmentation_id']
         category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
         # prepare default state value
-        default_state = 'confirm'
+        state = 'confirm'
+        if rpc_hotel_folio['state'] != 'sale':
+            state = rpc_hotel_folio['state']
 
         vals = {
             'name': rpc_hotel_folio['name'],
@@ -376,7 +378,7 @@ class MigratedHotel(models.Model):
             'channel_type': rpc_hotel_folio['channel_type'],
             'customer_notes': rpc_hotel_folio['wcustomer_notes'],
             'internal_comment': rpc_hotel_folio['internal_comment'],
-            'state': rpc_hotel_folio['state'] and rpc_hotel_folio['state'] != 'sale' or default_state,
+            'state': state,
             'cancelled_reason': rpc_hotel_folio['cancelled_reason'],
             'date_order': rpc_hotel_folio['date_order'],
             'user_id': res_user_id,
