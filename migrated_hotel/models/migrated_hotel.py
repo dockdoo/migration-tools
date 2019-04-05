@@ -27,6 +27,7 @@ class MigratedHotel(models.Model):
     odoo_version = fields.Char()
 
     migration_date_d = fields.Date('Migration D-date')
+    log_ids = fields.One2many('migrated.log', 'migrated_hotel_id')
 
     @api.model
     def create(self, vals):
@@ -223,9 +224,15 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
                                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
 
-                except (ValueError, ValidationError) as err:
-                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR: (%s)',
-                                  remote_res_partner_id, err)
+                except Exception as err:
+                    migrated_log = self.env['migrated.log'].create({
+                        'name': err,
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'type': 'partner'
+                    })
+                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                                  remote_res_partner_id, migrated_log.id, err)
                     continue
 
             # Second, import remote partners with contacts (already created in the previous step)
@@ -252,9 +259,15 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
 
                                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
-                except (ValueError, ValidationError) as err:
-                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR: (%s)',
-                                  remote_res_partner_id, err)
+                except Exception as err:
+                    migrated_log = self.env['migrated.log'].create({
+                        'name': err,
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'type': 'partner'
+                    })
+                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                                  remote_res_partner_id, migrated_log.id, err)
                     continue
 
             time_migration_partners = (time.time() - start_time) / 60
@@ -330,9 +343,15 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
 
                                  self._context.get('uid'), migrated_product.id, remote_product_id)
-                except (ValueError, ValidationError) as err:
-                    _logger.error('ERROR migrating remote product.product with ID remote: [%s] with ERROR: (%s)',
-                                  remote_product_id, err)
+                except Exception as err:
+                    migrated_log = self.env['migrated.log'].create({
+                        'name': err,
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'type': 'partner'
+                    })
+                    _logger.error('ERROR migrating remote product.product with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                                  remote_product_id, migrated_log.id, err)
                     continue
 
             time_migration_products = (time.time() - start_time) / 60
@@ -523,8 +542,14 @@ class MigratedHotel(models.Model):
 
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
                 except Exception as err:
-                    _logger.error('ERROR migrating remote hotel.folio with ID remote: [%s] with ERROR: (%s)',
-                                  remote_hotel_folio_id, err)
+                    migrated_log = self.env['migrated.log'].create({
+                        'name': err,
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'type': 'folio'
+                    })
+                    _logger.error('ERROR migrating remote hotel.folio with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                                  remote_hotel_folio_id, migrated_log.id, err)
                     continue
 
             time_migration_products = (time.time() - start_time) / 60

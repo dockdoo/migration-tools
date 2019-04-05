@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="migrated_log_views_tree" model="ir.ui.view">
+        <field name="name">migrated_log_views_tree</field>
+        <field name="model">migrated.log</field>
+        <field name="arch" type="xml">
+            <tree string="Remote Nodes">
+                <field name="date_time"/>
+                <field name="type"/>
+                <field name="name"/>
+            </tree>
+        </field>
+    </record>
+    
+</odoo>

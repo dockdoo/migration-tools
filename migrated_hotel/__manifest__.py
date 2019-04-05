@@ -13,6 +13,7 @@
     'license': "AGPL-3",
     'data': [
         'views/migrated_hotel_views.xml',
+        'views/migrated_log_views.xml',
         'views/inherited_res_partner_views.xml',
         'views/inherited_product_template_views.xml',
         'views/inherited_hotel_folio_views.xml',

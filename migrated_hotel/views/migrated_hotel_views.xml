@@ -56,6 +56,9 @@
                                         confirm="Import Reservations using D-date as limit for services lines. Do you want to proceed?"/>
                             </group>
                         </page>
+                        <page name="logs" string="Logs" attrs="{'invisible':[('id','=',False)]}">
+                            <field name="log_ids"/>
+                        </page>
                     </notebook>
                 </sheet>
             </form>
