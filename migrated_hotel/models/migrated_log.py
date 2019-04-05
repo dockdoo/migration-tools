@@ -8,7 +8,7 @@ class MigrateLog(models.Model):
     _name = 'migrated.log'
 
     name = fields.Char('Message')
-    date_time = fields.Date()
+    date_time = fields.Datetime()
     migrated_hotel_id = fields.Many2one('migrated.hotel')
     type = fields.Selection([
         ('partner', 'Partners'),
