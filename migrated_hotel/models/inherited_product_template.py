@@ -4,7 +4,7 @@
 from odoo import models, fields
 
 
-class ResPartner(models.Model):
+class ProductTemplate(models.Model):
 
     _inherit = 'product.template'
 

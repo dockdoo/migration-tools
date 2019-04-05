@@ -4,7 +4,7 @@
 from odoo import models, fields
 
 
-class ResPartner(models.Model):
+class HotelFolio(models.Model):
 
     _inherit = 'hotel.folio'
 
