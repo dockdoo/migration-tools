@@ -80,6 +80,21 @@ class MigratedHotel(models.Model):
             raise ValidationError(err)
 
     @api.multi
+    def check_vat(self, VAT, country_id):
+        res_partner = self.env['res.partner']
+        # quick and partial off-line checksum validation
+        check_func = res_partner.simple_vat_check
+        #check with country code as prefix of the TIN
+        vat_country, vat_number = res_partner._split_vat(VAT)
+        if not check_func(vat_country, vat_number):
+            #if fails, check with country code from country
+            country_code = self.env['res.country'].browse(country_id).code
+            if country_code:
+                if not check_func(country_code.lower(), VAT):
+                    return False
+        return True
+
+    @api.multi
     def _prepare_partner_remote_data(self, rpc_res_partner, country_map_ids,
                              country_state_map_ids, category_map_ids):
         # prepare country_id related field
@@ -100,6 +115,22 @@ class MigratedHotel(models.Model):
             ])
             parent_id = res_partner.id
             VAT = res_partner.vat
+
+        comment = rpc_res_partner['comment'] or ''
+        if not self.check_vat(VAT, country_id):
+            check_vat_msg = 'Invalid VAT number ' + VAT + ' for this partner ' + rpc_res_partner['name']
+            migrated_log = self.env['migrated.log'].create({
+                'name': check_vat_msg,
+                'date_time': fields.Datetime.now(),
+                'migrated_hotel_id': self.id,
+                'model': 'partner',
+                'remote_id': rpc_res_partner['parent_id'],
+            })
+            _logger.warning('Remote res.partner with ID remote: [%s] with ERROR LOG #%s: (%s)',
+                          rpc_res_partner['parent_id'], migrated_log.id, check_vat_msg)
+            comment = check_vat_msg + "\n" + comment
+            VAT = ''
+
         # TODO: prepare child_ids related field
         return {
             'lastname': rpc_res_partner['lastname'],
@@ -119,7 +150,7 @@ class MigratedHotel(models.Model):
             'city': rpc_res_partner['city'],
             'state_id': state_id,
             'country_id': country_id,
-            'comment': rpc_res_partner['comment'],
+            'comment': comment,
             'document_type': rpc_res_partner['documenttype'],
             'document_number': rpc_res_partner['poldocument'],
             'document_expedition_date': rpc_res_partner['polexpedition'],
@@ -232,7 +263,7 @@ class MigratedHotel(models.Model):
                         'model': 'partner',
                         'remote_id': remote_res_partner_id,
                     })
-                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                    _logger.error('Remote res.partner with ID remote: [%s] with ERROR LOG #%s: (%s)',
                                   remote_res_partner_id, migrated_log.id, err)
                     continue
 
@@ -268,7 +299,7 @@ class MigratedHotel(models.Model):
                         'model': 'partner',
                         'remote_id': remote_res_partner_id,
                     })
-                    _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                    _logger.error('Remote res.partner with ID remote: [%s] with ERROR LOG #%s: (%s)',
                                   remote_res_partner_id, migrated_log.id, err)
                     continue
 
@@ -353,7 +384,7 @@ class MigratedHotel(models.Model):
                         'model': 'product',
                         'remote_id': remote_product_id,
                     })
-                    _logger.error('ERROR migrating remote product.product with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                    _logger.error('Remote product.product with ID remote: [%s] with ERROR LOG #%s: (%s)',
                                   remote_product_id, migrated_log.id, err)
                     continue
 
@@ -572,7 +603,7 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
 
-                except (ValueError, ValidationError, Exception) as err:
+                except (KeyError, ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
@@ -580,7 +611,7 @@ class MigratedHotel(models.Model):
                         'model': 'folio',
                         'remote_id': remote_hotel_folio_id,
                     })
-                    _logger.error('ERROR migrating remote hotel.folio with ID remote: [%s] with ERROR LOG [%s]: (%s)',
+                    _logger.error('Remote hotel.folio with ID remote: [%s] with ERROR LOG #%s: (%s)',
                                   remote_hotel_folio_id, migrated_log.id, err)
                     continue
 
