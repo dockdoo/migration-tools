@@ -229,7 +229,8 @@ class MigratedHotel(models.Model):
                         'name': err,
                         'date_time': fields.Datetime.now(),
                         'migrated_hotel_id': self.id,
-                        'type': 'partner'
+                        'model': 'partner',
+                        'remote_id': remote_res_partner_id,
                     })
                     _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR LOG [%s]: (%s)',
                                   remote_res_partner_id, migrated_log.id, err)
@@ -264,7 +265,8 @@ class MigratedHotel(models.Model):
                         'name': err,
                         'date_time': fields.Datetime.now(),
                         'migrated_hotel_id': self.id,
-                        'type': 'partner'
+                        'model': 'partner',
+                        'remote_id': remote_res_partner_id,
                     })
                     _logger.error('ERROR migrating remote res.partner with ID remote: [%s] with ERROR LOG [%s]: (%s)',
                                   remote_res_partner_id, migrated_log.id, err)
@@ -348,7 +350,8 @@ class MigratedHotel(models.Model):
                         'name': err,
                         'date_time': fields.Datetime.now(),
                         'migrated_hotel_id': self.id,
-                        'type': 'partner'
+                        'model': 'product',
+                        'remote_id': remote_product_id,
                     })
                     _logger.error('ERROR migrating remote product.product with ID remote: [%s] with ERROR LOG [%s]: (%s)',
                                   remote_product_id, migrated_log.id, err)
@@ -380,6 +383,8 @@ class MigratedHotel(models.Model):
         ]) or default_res_partner.company_id
         remote_id = rpc_hotel_folio['user_id'] and rpc_hotel_folio['user_id'][0]
         res_user_id = remote_id and res_users_map_ids.get(remote_id)
+        remote_id = rpc_hotel_folio['create_uid'] and rpc_hotel_folio['create_uid'][0]
+        res_create_uid = remote_id and res_users_map_ids.get(remote_id)
         # prepare category_ids related field
         remote_ids = rpc_hotel_folio['segmentation_id'] and rpc_hotel_folio['segmentation_id']
         category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
@@ -400,13 +405,18 @@ class MigratedHotel(models.Model):
             'state': state,
             'cancelled_reason': rpc_hotel_folio['cancelled_reason'],
             'date_order': rpc_hotel_folio['date_order'],
+            'confirmation_date': rpc_hotel_folio['confirmation_date'],
+            'create_date': rpc_hotel_folio['create_date'],
             'user_id': res_user_id,
+            'create_uid': res_create_uid,
             '__last_update': rpc_hotel_folio['__last_update'],
         }
         # prepare room_lines related field
         remote_ids = rpc_hotel_folio['room_lines'] and rpc_hotel_folio['room_lines']
         hotel_reservations = noderpc.env['hotel.reservation'].search_read(
             [('id', 'in', remote_ids)],
+            [],
+            order='id ASC', # assume splitted parents reservation has always lesser id
         )
         room_lines_cmds = []
         for room in hotel_reservations:
@@ -434,17 +444,32 @@ class MigratedHotel(models.Model):
             room_id = remote_id and room_map_ids.get(remote_id) or None
             # prepare hotel.folio.room_lines
             room_lines_cmds.append((0, False, {
+                'remote_id': room['id'],
+                'name': room['name'],
                 'room_type_id': room_type_id,
                 'room_id': room_id,
-                'checkin': fields.Date.from_string(room['checkin']).strftime(
-                    DEFAULT_SERVER_DATE_FORMAT),
-                'checkout': fields.Date.from_string(room['checkout']).strftime(
-                    DEFAULT_SERVER_DATE_FORMAT),
+                'checkin': fields.Date.from_string(
+                    room['checkin']).strftime(DEFAULT_SERVER_DATE_FORMAT),
+                'checkout': fields.Date.from_string(
+                    room['checkout']).strftime(DEFAULT_SERVER_DATE_FORMAT),
+                'arrival_hour': fields.Datetime.from_string(
+                    room['checkin']).strftime('%H:%M'),
+                'departure_hour': fields.Datetime.from_string(
+                    room['checkout']).strftime('%H:%M'),
+                'nights': room['nights'],
+                'to_assign': room['to_assign'],
+                'to_send': room['to_send'],
                 'state': room['state'],
                 'cancelled_reason': room['cancelled_reason'],
                 'out_service_description': room['out_service_description'],
                 'adults': room['adults'],
                 'children': room['children'],
+                'splitted': room['splitted'],
+                # 'parent_reservation': not yet implemented,
+                'overbooking': room['overbooking'],
+                'channel_type': room['channel_type'],
+                'call_center': room['call_center'],
+                'last_updated_res': room['last_updated_res'],
                 'reservation_line_ids': reservation_line_cmds,
             }))
             vals.update({'room_lines': room_lines_cmds})
@@ -535,8 +560,11 @@ class MigratedHotel(models.Model):
                                                                room_map_ids,
                                                                noderpc)
                         migrated_hotel_folio = self.env['hotel.folio'].create(vals)
+                        migrated_hotel_folio.remote_order_id = rpc_hotel_folio['order_id'][0] or 0
                     #
                     migrated_hotel_folio.remote_id = remote_hotel_folio_id
+
+                    # TODO: update parent_reservation_id for splitted reservation
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
 
@@ -546,7 +574,8 @@ class MigratedHotel(models.Model):
                         'name': err,
                         'date_time': fields.Datetime.now(),
                         'migrated_hotel_id': self.id,
-                        'type': 'folio'
+                        'model': 'folio',
+                        'remote_id': remote_hotel_folio_id,
                     })
                     _logger.error('ERROR migrating remote hotel.folio with ID remote: [%s] with ERROR LOG [%s]: (%s)',
                                   remote_hotel_folio_id, migrated_log.id, err)

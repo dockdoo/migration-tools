@@ -17,6 +17,7 @@
         'views/inherited_res_partner_views.xml',
         'views/inherited_product_template_views.xml',
         'views/inherited_hotel_folio_views.xml',
+        'views/inherited_hotel_reservation_views.xml',
         'security/migrated_hotel_security.xml',
         'security/ir.model.access.csv',
     ],

@@ -10,8 +10,11 @@ class MigrateLog(models.Model):
     name = fields.Char('Message')
     date_time = fields.Datetime()
     migrated_hotel_id = fields.Many2one('migrated.hotel')
-    type = fields.Selection([
-        ('partner', 'Partners'),
-        ('product', 'Products'),
-        ('folio', 'Folio')
+    model = fields.Selection([
+        ('partner', 'res.partner'),
+        ('product', 'product.product'),
+        ('folio', 'hotel.folio')
     ])
+    remote_id = fields.Integer(
+        copy=False, readonly=True,
+        help="ID of the remote record in the previous version")

@@ -10,3 +10,6 @@ class HotelFolio(models.Model):
 
     remote_id = fields.Integer(require=True, copy=False, readonly=True,
             help="ID of the target record in the previous version")
+
+    remote_order_id = fields.Integer(require=True, copy=False, readonly=True,
+            help="ID of the Order Reference in the previous version")

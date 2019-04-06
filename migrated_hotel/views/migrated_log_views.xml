@@ -7,7 +7,8 @@
         <field name="arch" type="xml">
             <tree string="Remote Nodes">
                 <field name="date_time"/>
-                <field name="type"/>
+                <field name="model"/>
+                <field name="remote_id"/>
                 <field name="name"/>
             </tree>
         </field>
