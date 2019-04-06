@@ -546,6 +546,9 @@ class MigratedHotel(models.Model):
             _logger.info("Migrating 'hotel.folio'...")
             for remote_hotel_folio_id in remote_hotel_folio_ids:
                 try:
+                    _logger.info('User #%s started migration of hotel.folio with remote ID: [%s]',
+                                 self._context.get('uid'), remote_hotel_folio_id)
+
                     rpc_hotel_folio = noderpc.env['hotel.folio'].search_read(
                         [('id', '=', remote_hotel_folio_id)],
                     )[0]
@@ -567,8 +570,8 @@ class MigratedHotel(models.Model):
                     # TODO: update parent_reservation_id for splitted reservation
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
-
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
+
                 except Exception as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
