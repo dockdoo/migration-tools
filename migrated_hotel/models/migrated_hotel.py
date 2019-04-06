@@ -117,19 +117,19 @@ class MigratedHotel(models.Model):
             VAT = res_partner.vat
 
         comment = rpc_res_partner['comment'] or ''
-        if not self.check_vat(VAT, country_id):
+        if VAT and not self.check_vat(VAT, country_id):
             check_vat_msg = 'Invalid VAT number ' + VAT + ' for this partner ' + rpc_res_partner['name']
             migrated_log = self.env['migrated.log'].create({
                 'name': check_vat_msg,
                 'date_time': fields.Datetime.now(),
                 'migrated_hotel_id': self.id,
                 'model': 'partner',
-                'remote_id': rpc_res_partner['parent_id'],
+                'remote_id': rpc_res_partner['id'],
             })
             _logger.warning('Remote res.partner with ID remote: [%s] with ERROR LOG #%s: (%s)',
-                          rpc_res_partner['parent_id'], migrated_log.id, check_vat_msg)
+                          rpc_res_partner['id'], migrated_log.id, check_vat_msg)
             comment = check_vat_msg + "\n" + comment
-            VAT = ''
+            VAT = False
 
         # TODO: prepare child_ids related field
         return {
