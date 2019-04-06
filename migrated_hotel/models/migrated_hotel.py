@@ -224,7 +224,7 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
                                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
 
-                except Exception as err:
+                except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
@@ -260,7 +260,7 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
 
                                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
-                except Exception as err:
+                except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
@@ -345,7 +345,7 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
 
                                  self._context.get('uid'), migrated_product.id, remote_product_id)
-                except Exception as err:
+                except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
@@ -572,7 +572,7 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
 
-                except Exception as err:
+                except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
