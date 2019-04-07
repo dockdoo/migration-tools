@@ -134,6 +134,7 @@ class MigratedHotel(models.Model):
 
         # TODO: prepare child_ids related field
         return {
+            'remote_id': rpc_res_partner['id'],
             'lastname': rpc_res_partner['lastname'],
             'firstname': rpc_res_partner['firstname'],
             'phone': rpc_res_partner['phone'],
@@ -251,7 +252,6 @@ class MigratedHotel(models.Model):
                         category_map_ids,
                     )
                     migrated_res_partner = self.env['res.partner'].create(vals)
-                    migrated_res_partner.remote_id = remote_res_partner_id
 
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
                                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
@@ -287,7 +287,6 @@ class MigratedHotel(models.Model):
                         category_map_ids,
                     )
                     migrated_res_partner = self.env['res.partner'].create(vals)
-                    migrated_res_partner.remote_id = remote_res_partner_id
 
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
 
