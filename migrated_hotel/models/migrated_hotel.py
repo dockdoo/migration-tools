@@ -158,7 +158,7 @@ class MigratedHotel(models.Model):
             'birthdate_date': rpc_res_partner['birthdate_date'],
             'code_ine_id': rpc_res_partner['code_ine'] and rpc_res_partner['code_ine'][0],
             'category_id': category_ids and [[6, False, category_ids]] or None,
-            'unconfirmed': False,
+            'unconfirmed': True,
             'parent_id': parent_id,
             'vat': VAT,
         }
