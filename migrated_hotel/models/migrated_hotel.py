@@ -572,6 +572,12 @@ class MigratedHotel(models.Model):
             _logger.info("Preparing 'hotel.folio' of interest...")
             remote_hotel_folio_ids = noderpc.env['hotel.folio'].search([])
             _logger.info("Migrating 'hotel.folio'...")
+            # disable mail feature to speed-up migration
+            context_no_mail = {
+                'tracking_disable': True,
+                'mail_notrack': True,
+                'mail_create_nolog': True,
+            }
             for remote_hotel_folio_id in remote_hotel_folio_ids:
                 try:
                     _logger.info('User #%s started migration of hotel.folio with remote ID: [%s]',
@@ -588,7 +594,9 @@ class MigratedHotel(models.Model):
                             rpc_hotel_folio,
                             res_users_map_ids,
                             category_map_ids)
-                        migrated_hotel_folio = self.env['hotel.folio'].create(vals)
+                        migrated_hotel_folio = self.env['hotel.folio'].with_context(
+                            context_no_mail
+                        ).create(vals)
 
                         # prepare room_lines related field
                         remote_ids = rpc_hotel_folio['room_lines'] and rpc_hotel_folio['room_lines']
@@ -624,14 +632,16 @@ class MigratedHotel(models.Model):
                                 room_type_map_ids,
                                 room_map_ids,
                                 noderpc)
-                            migrated_hotel_reservation = self.env['hotel.reservation'].create(vals)
+                            migrated_hotel_reservation = self.env['hotel.reservation'].with_context(
+                                context_no_mail
+                            ).create(vals)
                         #
                         # TODO: update parent_reservation_id for splitted reservation
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
 
-                except (KeyError, ValueError, ValidationError, Exception) as err:
+                except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
