@@ -398,8 +398,8 @@ class MigratedHotel(models.Model):
             noderpc.logout()
 
     @api.multi
-    def _prepare_folio_remote_data(self, rpc_hotel_folio, res_users_map_ids, category_map_ids,
-                                   room_type_map_ids, room_map_ids, noderpc):
+    def _prepare_folio_remote_data(self, rpc_hotel_folio,
+                                   res_users_map_ids, category_map_ids):
         # prepare partner_id related field
         default_res_partner = self.env['res.partner'].search([
             ('user_ids', 'in', self._context.get('uid'))
@@ -425,6 +425,8 @@ class MigratedHotel(models.Model):
             state = rpc_hotel_folio['state']
 
         vals = {
+            'remote_id': rpc_hotel_folio['id'],
+            'remote_order_id': rpc_hotel_folio['order_id'][0] or 0,
             'name': rpc_hotel_folio['name'],
             'partner_id': res_partner.id,
             'partner_invoice_id': res_partner_invoice.id,
@@ -442,76 +444,71 @@ class MigratedHotel(models.Model):
             'create_uid': res_create_uid,
             '__last_update': rpc_hotel_folio['__last_update'],
         }
-        # prepare room_lines related field
-        remote_ids = rpc_hotel_folio['room_lines'] and rpc_hotel_folio['room_lines']
-        hotel_reservations = noderpc.env['hotel.reservation'].search_read(
+        return vals
+
+    @api.multi
+    def _prepare_reservation_remote_data(self, folio_id, reservation,
+                                   room_type_map_ids, room_map_ids, noderpc):
+
+        # 'web sale' reservations after D-date are __not__ migrated with this script
+        if reservation['channel_type'] == 'web' and fields.Date.from_string(
+                reservation['checkin']) >= fields.Date.from_string(self.migration_date_d):
+            pass
+
+        remote_ids = reservation['reservation_lines'] and reservation['reservation_lines']
+        hotel_reservation_lines = noderpc.env['hotel.reservation.line'].search_read(
             [('id', 'in', remote_ids)],
-            [],
-            order='id ASC', # assume splitted parents reservation has always lesser id
+            ['date', 'price']
         )
-        room_lines_cmds = []
-        for room in hotel_reservations:
-            # 'web sale' reservations after D-date are __not__ migrated with this script
-            if room['channel_type'] == 'web' and fields.Date.from_string(
-                    room['checkin']) >= fields.Date.from_string(self.migration_date_d):
-                continue
-
-            remote_ids = room['reservation_lines'] and room['reservation_lines']
-            hotel_reservation_lines = noderpc.env['hotel.reservation.line'].search_read(
-                [('id', 'in', remote_ids)],
-                ['date', 'price']
-            )
-            reservation_line_cmds = []
-            for reservation_line in hotel_reservation_lines:
-                reservation_line_cmds.append((0, False, {
-                    'date': reservation_line['date'],
-                    'price': reservation_line['price'],
-                }))
-            # prepare hotel_room_type related field
-            remote_id = room['virtual_room_id'] and room['virtual_room_id'][0]
-            room_type_id = remote_id and room_type_map_ids.get(remote_id) or None
-            # prepare hotel_room related field
-            remote_id = room['product_id'] and room['product_id'][0]
-            room_id = remote_id and room_map_ids.get(remote_id) or None
-            # prepare hotel.folio.room_lines
-            room_lines_cmds.append((0, False, {
-                'remote_id': room['id'],
-                'name': room['name'],
-                'room_type_id': room_type_id,
-                'room_id': room_id,
-                'checkin': fields.Date.from_string(
-                    room['checkin']).strftime(DEFAULT_SERVER_DATE_FORMAT),
-                'checkout': fields.Date.from_string(
-                    room['checkout']).strftime(DEFAULT_SERVER_DATE_FORMAT),
-                'arrival_hour': fields.Datetime.from_string(
-                    room['checkin']).strftime('%H:%M'),
-                'departure_hour': fields.Datetime.from_string(
-                    room['checkout']).strftime('%H:%M'),
-                'nights': room['nights'],
-                'to_assign': room['to_assign'],
-                'to_send': room['to_send'],
-                'state': room['state'],
-                'cancelled_reason': room['cancelled_reason'],
-                'out_service_description': room['out_service_description'],
-                'adults': room['adults'],
-                'children': room['children'],
-                'splitted': room['splitted'],
-                # 'parent_reservation': not yet implemented,
-                'overbooking': room['overbooking'],
-                'channel_type': room['channel_type'],
-                'call_center': room['call_center'],
-                'last_updated_res': room['last_updated_res'],
-                'reservation_line_ids': reservation_line_cmds,
+        reservation_line_cmds = []
+        for reservation_line in hotel_reservation_lines:
+            reservation_line_cmds.append((0, False, {
+                'date': reservation_line['date'],
+                'price': reservation_line['price'],
             }))
-            vals.update({'room_lines': room_lines_cmds})
+        # prepare hotel_room_type related field
+        remote_id = reservation['virtual_room_id'] and reservation['virtual_room_id'][0]
+        room_type_id = remote_id and room_type_map_ids.get(remote_id) or None
+        # prepare hotel_room related field
+        remote_id = reservation['product_id'] and reservation['product_id'][0]
+        room_id = remote_id and room_map_ids.get(remote_id) or None
+        # prepare hotel.folio.room_lines
+        vals = {
+            'folio_id': folio_id,
+            'remote_id': reservation['id'],
+            'name': reservation['name'],
+            'room_type_id': room_type_id,
+            'room_id': room_id,
+            'checkin': fields.Date.from_string(
+                reservation['checkin']).strftime(DEFAULT_SERVER_DATE_FORMAT),
+            'checkout': fields.Date.from_string(
+                reservation['checkout']).strftime(DEFAULT_SERVER_DATE_FORMAT),
+            'arrival_hour': fields.Datetime.from_string(
+                reservation['checkin']).strftime('%H:%M'),
+            'departure_hour': fields.Datetime.from_string(
+                reservation['checkout']).strftime('%H:%M'),
+            'nights': reservation['nights'],
+            'to_assign': reservation['to_assign'],
+            'to_send': reservation['to_send'],
+            'state': reservation['state'],
+            'cancelled_reason': reservation['cancelled_reason'],
+            'out_service_description': reservation['out_service_description'],
+            'adults': reservation['adults'],
+            'children': reservation['children'],
+            'splitted': reservation['splitted'],
+            # 'parent_reservation': not yet implemented,
+            'overbooking': reservation['overbooking'],
+            'channel_type': reservation['channel_type'],
+            'call_center': reservation['call_center'],
+            'last_updated_res': reservation['last_updated_res'],
+            'reservation_line_ids': reservation_line_cmds,
+        }
+        # 'direct sale' reservations after D-date are migrated with no products
+        if reservation['channel_type'] != 'web' and fields.Date.from_string(
+                reservation['checkin']) >= fields.Date.from_string(self.migration_date_d):
+            pass
 
-            # 'direct sale' reservations after D-date are migrated with no products
-            if room['channel_type'] != 'web' and fields.Date.from_string(
-                    room['checkin']) >= fields.Date.from_string(self.migration_date_d):
-                continue
-
-            # reservations before D-date are migrated with Odoo 10 products
-
+        # reservations before D-date are migrated with Odoo 10 products
         return vals
 
     @api.multi
@@ -587,18 +584,49 @@ class MigratedHotel(models.Model):
                         ('remote_id', '=', remote_hotel_folio_id)
                     ]) or None
                     if not migrated_hotel_folio:
-                        vals = self._prepare_folio_remote_data(rpc_hotel_folio,
-                                                               res_users_map_ids,
-                                                               category_map_ids,
-                                                               room_type_map_ids,
-                                                               room_map_ids,
-                                                               noderpc)
+                        vals = self._prepare_folio_remote_data(
+                            rpc_hotel_folio,
+                            res_users_map_ids,
+                            category_map_ids)
                         migrated_hotel_folio = self.env['hotel.folio'].create(vals)
-                        migrated_hotel_folio.remote_order_id = rpc_hotel_folio['order_id'][0] or 0
-                    #
-                    migrated_hotel_folio.remote_id = remote_hotel_folio_id
 
-                    # TODO: update parent_reservation_id for splitted reservation
+                        # prepare room_lines related field
+                        remote_ids = rpc_hotel_folio['room_lines'] and rpc_hotel_folio['room_lines']
+                        hotel_reservations = noderpc.env['hotel.reservation'].search_read(
+                            [('id', 'in', remote_ids)],
+                            ['name',
+                             'virtual_room_id',
+                             'product_id',
+                             'checkin',
+                             'checkout',
+                             'nights',
+                             'to_assign',
+                             'to_send',
+                             'state',
+                             'cancelled_reason',
+                             'out_service_description',
+                             'adults',
+                             'children',
+                             'splitted',
+                             # 'parent_reservation': not yet implemented,
+                             'overbooking',
+                             'channel_type',
+                             'call_center',
+                             'last_updated_res',
+                             'reservation_lines',
+                             ],
+                            order='id ASC',  # assume splitted parents reservation has always lesser id
+                        )
+                        for reservation in hotel_reservations:
+                            vals = self._prepare_reservation_remote_data(
+                                migrated_hotel_folio.id,
+                                reservation,
+                                room_type_map_ids,
+                                room_map_ids,
+                                noderpc)
+                            migrated_hotel_reservation = self.env['hotel.reservation'].create(vals)
+                        #
+                        # TODO: update parent_reservation_id for splitted reservation
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
