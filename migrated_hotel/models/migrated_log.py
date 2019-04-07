@@ -18,3 +18,5 @@ class MigrateLog(models.Model):
     remote_id = fields.Integer(
         copy=False, readonly=True,
         help="ID of the remote record in the previous version")
+
+    _order = 'date_time desc'
