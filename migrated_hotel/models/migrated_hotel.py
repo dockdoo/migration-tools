@@ -71,11 +71,11 @@ class MigratedHotel(models.Model):
                 if res_user:
                     res_user.partner_id.remote_id = rpc_res_user['partner_id'][0]
                     _logger.info('User #%s updated a res.partner ID: [%s] with remote_id: [%s]',
-                                 self._context.get('uid'), res_user.partner_id.id, res_user.partner_id.remote_id)
+                                 self._uid, res_user.partner_id.id, res_user.partner_id.remote_id)
                 else:
                     _logger.warning('User #%s ignored migration of remote res.users ID: [%s]. '
                                     'The user does not exist in this database',
-                                    self._context.get('uid'), remote_res_user_id)
+                                    self._uid, remote_res_user_id)
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
             raise ValidationError(err)
@@ -262,7 +262,7 @@ class MigratedHotel(models.Model):
                         ).create(vals)
 
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                     self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
+                                     self._uid, migrated_res_partner.id, remote_res_partner_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
@@ -299,8 +299,8 @@ class MigratedHotel(models.Model):
                         ).create(vals)
 
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
+                                     self._uid, migrated_res_partner.id, remote_res_partner_id)
 
-                                     self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
@@ -391,8 +391,8 @@ class MigratedHotel(models.Model):
                     #
 
                     _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
+                                 self._uid, migrated_product.id, remote_product_id)
 
-                                 self._context.get('uid'), migrated_product.id, remote_product_id)
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
@@ -419,7 +419,7 @@ class MigratedHotel(models.Model):
                                    res_users_map_ids, category_map_ids):
         # prepare partner_id related field
         default_res_partner = self.env['res.partner'].search([
-            ('user_ids', 'in', self._context.get('uid'))
+            ('user_ids', 'in', self._context.get('uid'), self._uid)
         ])
         remote_id = rpc_hotel_folio['partner_id'] and rpc_hotel_folio['partner_id'][0]
         res_partner = self.env['res.partner'].search([
@@ -551,7 +551,7 @@ class MigratedHotel(models.Model):
             for record in remote_records:
                 res_users_id = self.env['res.users'].search([
                     ('login', '=', record.login),
-                ]).id or self._context.get('uid')
+                ]).id or self._context.get('uid', self._uid)
                 res_users_map_ids.update({record.id: res_users_id})
             # prepare res.partner.category ids
             _logger.info("Mapping local with remote 'res.partner.category' ids...")
@@ -598,7 +598,7 @@ class MigratedHotel(models.Model):
             for remote_hotel_folio_id in remote_hotel_folio_ids:
                 try:
                     _logger.info('User #%s started migration of hotel.folio with remote ID: [%s]',
-                                 self._context.get('uid'), remote_hotel_folio_id)
+                                 self._uid, remote_hotel_folio_id)
 
                     rpc_hotel_folio = noderpc.env['hotel.folio'].search_read(
                         [('id', '=', remote_hotel_folio_id)],
@@ -656,7 +656,7 @@ class MigratedHotel(models.Model):
                         # TODO: update parent_reservation_id for splitted reservation
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
-                                 self._context.get('uid'), migrated_hotel_folio.id, remote_hotel_folio_id)
+                                 self._uid, migrated_hotel_folio.id, remote_hotel_folio_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
