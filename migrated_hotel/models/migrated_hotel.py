@@ -578,7 +578,7 @@ class MigratedHotel(models.Model):
                 'tracking_disable': True,
                 'mail_notrack': True,
                 'mail_create_nolog': True,
-            } # with_context({'show_notify': False})
+            }
             for remote_hotel_folio_id in remote_hotel_folio_ids:
                 try:
                     _logger.info('User #%s started migration of hotel.folio with remote ID: [%s]',
@@ -674,7 +674,7 @@ class MigratedHotel(models.Model):
                      time_migration_partners)
 
     @api.model
-    def cron_migrate_partners(self):
+    def cron_migrate_res_partners(self):
         hotel = self.env[self._name].search([
             ('cron_ready', '=', True)
         ])
@@ -691,5 +691,5 @@ class MigratedHotel(models.Model):
 
     @api.model
     def cron_migrate_hotel(self):
-        self.action_migrate_res_partners()
-        self.action_migrate_reservation()
+        self.cron_migrate_res_partners()
+        self.cron_migrate_reservation()
