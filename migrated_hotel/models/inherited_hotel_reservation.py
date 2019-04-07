@@ -11,12 +11,8 @@ class HotelReservation(models.Model):
     remote_id = fields.Integer(require=True, copy=False, readonly=True,
             help="ID of the target record in the previous version")
 
-    @api.model
-    def create(self, vals):
-        reservation_id = super().create(vals)
-        return reservation_id
-
     @api.multi
-    def write(self, vals):
-        ret = super().write(vals)
-        return ret
+    def confirm(self):
+        if self._context.get('tracking_disable'):
+            return True
+        return super().confirm()
