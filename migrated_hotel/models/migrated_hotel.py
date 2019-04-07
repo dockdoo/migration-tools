@@ -240,6 +240,12 @@ class MigratedHotel(models.Model):
                 ('parent_id', '=', False),
                 ('user_ids', '=', False),
             ])
+            # disable mail feature to speed-up migration
+            context_no_mail = {
+                'tracking_disable': True,
+                'mail_notrack': True,
+                'mail_create_nolog': True,
+            }
             for remote_res_partner_id in remote_partner_ids:
                 try:
                     rpc_res_partner = noderpc.env['res.partner'].search_read(
@@ -251,7 +257,9 @@ class MigratedHotel(models.Model):
                         country_state_map_ids,
                         category_map_ids,
                     )
-                    migrated_res_partner = self.env['res.partner'].create(vals)
+                    migrated_res_partner = self.env['res.partner'].with_context(
+                            context_no_mail
+                        ).create(vals)
 
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
                                      self._context.get('uid'), migrated_res_partner.id, remote_res_partner_id)
@@ -286,7 +294,9 @@ class MigratedHotel(models.Model):
                         country_state_map_ids,
                         category_map_ids,
                     )
-                    migrated_res_partner = self.env['res.partner'].create(vals)
+                    migrated_res_partner = self.env['res.partner'].with_context(
+                            context_no_mail
+                        ).create(vals)
 
                     _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
 
@@ -347,11 +357,16 @@ class MigratedHotel(models.Model):
                 hotel_room_set,
                 hotel_room_amenities_set
             ))
-            # First, import remote partners without contacts (parent_id is not set)
             _logger.info("Migrating 'product.product'...")
             remote_product_ids = noderpc.env['product.product'].search([
                 ('id', 'not in', remote_products_set_ids),
             ])
+            # disable mail feature to speed-up migration
+            context_no_mail = {
+                'tracking_disable': True,
+                'mail_notrack': True,
+                'mail_create_nolog': True,
+            }
             for remote_product_id in remote_product_ids:
                 try:
                     rpc_product = noderpc.env['product.product'].search_read(
@@ -370,7 +385,9 @@ class MigratedHotel(models.Model):
                             'sale_ok': True,
                             'purchase_ok': False,
                         }
-                        migrated_product = self.env['product.template'].create(vals)
+                        migrated_product = self.env['product.template'].with_context(
+                            context_no_mail
+                        ).create(vals)
                     #
 
                     _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
