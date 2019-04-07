@@ -28,6 +28,7 @@ class MigratedHotel(models.Model):
 
     migration_date_d = fields.Date('Migration D-date')
     log_ids = fields.One2many('migrated.log', 'migrated_hotel_id')
+    cron_ready = fields.Boolean(default=False)
 
     @api.model
     def create(self, vals):
@@ -577,7 +578,7 @@ class MigratedHotel(models.Model):
                 'tracking_disable': True,
                 'mail_notrack': True,
                 'mail_create_nolog': True,
-            }
+            } # with_context({'show_notify': False})
             for remote_hotel_folio_id in remote_hotel_folio_ids:
                 try:
                     _logger.info('User #%s started migration of hotel.folio with remote ID: [%s]',
@@ -671,3 +672,24 @@ class MigratedHotel(models.Model):
         time_migration_partners = (time.time() - start_time) / 60
         _logger.info('action_clean_up elapsed time: %s minutes',
                      time_migration_partners)
+
+    @api.model
+    def cron_migrate_partners(self):
+        hotel = self.env[self._name].search([
+            ('cron_ready', '=', True)
+        ])
+        hotel.action_migrate_res_partners()
+        hotel.action_clean_up()
+
+    @api.model
+    def cron_migrate_reservations(self):
+        hotel = self.env[self._name].search([
+            ('cron_ready', '=', True)
+        ])
+        hotel.action_migrate_reservation()
+        hotel.action_clean_up()
+
+    @api.model
+    def cron_migrate_hotel(self):
+        self.action_migrate_res_partners()
+        self.action_migrate_reservation()
