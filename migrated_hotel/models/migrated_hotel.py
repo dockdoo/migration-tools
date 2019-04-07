@@ -362,6 +362,7 @@ class MigratedHotel(models.Model):
                     ]) or None
                     if not migrated_product:
                         vals = {
+                            'remote_id': rpc_product['id'],
                             'name': rpc_product['name'],
                             'list_price': rpc_product['list_price'],
                             'taxes_id': rpc_product['taxes_id'] and [[6, False, rpc_product['taxes_id']]] or None,
@@ -371,7 +372,6 @@ class MigratedHotel(models.Model):
                         }
                         migrated_product = self.env['product.template'].create(vals)
                     #
-                    migrated_product.remote_id = remote_product_id
 
                     _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
 
