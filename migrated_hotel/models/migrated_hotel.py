@@ -415,23 +415,44 @@ class MigratedHotel(models.Model):
                                    res_users_map_ids, category_map_ids):
         # prepare partner_id related field
         default_res_partner = self.env['res.partner'].search([
-            ('user_ids', 'in', self._context.get('uid'), self._uid)
+            ('user_ids', 'in', self._context.get('uid', self._uid))
         ])
+        # search res_partner id
         remote_id = rpc_hotel_folio['partner_id'] and rpc_hotel_folio['partner_id'][0]
-        res_partner = self.env['res.partner'].search([
+        res_partner_id = self.env['res.partner'].search([
             ('remote_id', '=', remote_id)
-        ]) or default_res_partner
+        ]).id or None
+        # take into account merged partners are not active
+        if not res_partner_id:
+            res_partner_id = self.env['res.partner'].search([
+                ('remote_id', '=', remote_id),
+                ('active', '=', False)
+            ]).main_partner_id.id or None
+        res_partner_id = res_partner_id or default_res_partner.id
+
+        # search res_partner invoice id
         remote_id = rpc_hotel_folio['partner_invoice_id'] and rpc_hotel_folio['partner_invoice_id'][0]
-        res_partner_invoice = self.env['res.partner'].search([
+        res_partner_invoice_id = self.env['res.partner'].search([
             ('remote_id', '=', remote_id)
-        ]) or default_res_partner.company_id
+        ]).id or None
+        # take into account merged partners are not active
+        if not res_partner_invoice_id:
+            res_partner_invoice_id = self.env['res.partner'].search([
+                ('remote_id', '=', remote_id),
+                ('active', '=', False)
+            ]).main_partner_id.id or None
+        res_partner_invoice_id = res_partner_invoice_id or default_res_partner.company_id.id
+
+        # search res_users ids
         remote_id = rpc_hotel_folio['user_id'] and rpc_hotel_folio['user_id'][0]
         res_user_id = remote_id and res_users_map_ids.get(remote_id)
         remote_id = rpc_hotel_folio['create_uid'] and rpc_hotel_folio['create_uid'][0]
         res_create_uid = remote_id and res_users_map_ids.get(remote_id)
+
         # prepare category_ids related field
         remote_ids = rpc_hotel_folio['segmentation_id'] and rpc_hotel_folio['segmentation_id']
         category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
+
         # prepare default state value
         state = 'confirm'
         if rpc_hotel_folio['state'] != 'sale':
@@ -441,8 +462,8 @@ class MigratedHotel(models.Model):
             'remote_id': rpc_hotel_folio['id'],
             'remote_order_id': rpc_hotel_folio['order_id'][0] or 0,
             'name': rpc_hotel_folio['name'],
-            'partner_id': res_partner.id,
-            'partner_invoice_id': res_partner_invoice.id,
+            'partner_id': res_partner_id,
+            'partner_invoice_id': res_partner_invoice_id,
             'segmentation_ids': category_ids and [[6, False, category_ids]] or None,
             'reservation_type': rpc_hotel_folio['reservation_type'],
             'channel_type': rpc_hotel_folio['channel_type'],
