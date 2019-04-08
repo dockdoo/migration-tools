@@ -537,13 +537,32 @@ class MigratedHotel(models.Model):
             'last_updated_res': reservation['last_updated_res'],
             'reservation_line_ids': reservation_line_cmds,
         }
-        # 'direct sale' reservations after D-date are migrated with no products
-        if reservation['channel_type'] != 'web' and fields.Date.from_string(
-                reservation['checkin']) >= fields.Date.from_string(self.migration_date_d):
-            pass
-
-        # reservations before D-date are migrated with Odoo 10 products
         return vals
+
+    @api.multi
+    def _prepare_folio_service_remote_data(self, hotel_folio_services):
+
+        service_line_cmds = []
+        for service in hotel_folio_services:
+            # 'direct sale' reservations after D-date are migrated with no products
+            if service['channel_type'] != 'web' and fields.Date.from_string(
+                    service['ser_checkin']) >= fields.Date.from_string(self.migration_date_d):
+                continue
+            # reservations before D-date are migrated with Odoo 10 products
+            service_line_cmds.append((0, False, {
+                'product_id': self.env['product.product'].search([
+                    ('remote_id', '=', service['product_id'][0])
+                ]).id or None,
+                'ser_room_line': self.env['hotel.reservation'].search([
+                    ('remote_id', '=', service['ser_room_line'][0])
+                ]).id or None,
+                'product_qty': service['product_uom_qty'],
+                'price_unit': service['price_unit'],
+                'discount': service['discount'],
+                'channel_type': service['channel_type'] or 'door',
+            }))
+
+        return service_line_cmds
 
     @api.multi
     def action_migrate_reservation(self):
@@ -669,8 +688,26 @@ class MigratedHotel(models.Model):
                             migrated_hotel_reservation = self.env['hotel.reservation'].with_context(
                                 context_no_mail
                             ).create(vals)
-                        #
                         # TODO: update parent_reservation_id for splitted reservation
+
+                        # prepare service_lines related field
+                        remote_ids = rpc_hotel_folio['service_lines'] and rpc_hotel_folio['service_lines']
+                        hotel_folio_services = noderpc.env['hotel.service.line'].search_read(
+                            [('id', 'in', remote_ids)],
+                            ['product_id',
+                             'product_uom_qty',
+                             'price_unit',
+                             'discount',
+                             'channel_type',
+                             'ser_room_line',
+                             'ser_checkin',
+                             'service_line_id',
+                             'last_updated_res',
+                             ]
+                        )
+                        service_line_cmds = self._prepare_folio_service_remote_data(hotel_folio_services)
+                        # all services are create in the folio at once
+                        migrated_hotel_folio.service_ids = service_line_cmds
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._uid, migrated_hotel_folio.id, remote_hotel_folio_id)
