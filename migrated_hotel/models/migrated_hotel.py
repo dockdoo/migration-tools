@@ -356,6 +356,7 @@ class MigratedHotel(models.Model):
             _logger.info("Migrating 'product.product'...")
             remote_product_ids = noderpc.env['product.product'].search([
                 ('id', 'not in', remote_products_set_ids),
+                '|', ('active', '=', True), ('active', '=', False)
             ])
             # disable mail feature to speed-up migration
             context_no_mail = {
@@ -365,25 +366,25 @@ class MigratedHotel(models.Model):
             }
             for remote_product_id in remote_product_ids:
                 try:
-                    rpc_product = noderpc.env['product.product'].search_read(
-                        [('id', '=', remote_product_id)],
-                    )[0]
-                    migrated_product = self.env['product.template'].search([
+                    rpc_product = noderpc.env['product.product'].browse(remote_product_id)
+                    migrated_product = self.env['product.product'].search([
                         ('remote_id', '=', remote_product_id)
                     ]) or None
-                    if not migrated_product:
-                        vals = {
-                            'remote_id': rpc_product['id'],
-                            'name': rpc_product['name'],
-                            'list_price': rpc_product['list_price'],
-                            'taxes_id': rpc_product['taxes_id'] and [[6, False, rpc_product['taxes_id']]] or None,
-                            'type': 'service',
-                            'sale_ok': True,
-                            'purchase_ok': False,
-                        }
-                        migrated_product = self.env['product.template'].with_context(
-                            context_no_mail
-                        ).create(vals)
+
+                    # if not migrated_product:
+                    vals = {
+                        'remote_id': remote_product_id,
+                        'name': rpc_product.name,
+                        'taxes_id': [[6, False, [rpc_product.taxes_id.id or 59]]], # vat 10% (services) as default
+                        'list_price': rpc_product.list_price,
+                        'type': 'service',
+                        'sale_ok': True,
+                        'purchase_ok': False,
+                        'active': True,
+                    }
+                    migrated_product = self.env['product.product'].with_context(
+                        context_no_mail
+                    ).create(vals)
                     #
 
                     _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
@@ -556,6 +557,7 @@ class MigratedHotel(models.Model):
                 'ser_room_line': self.env['hotel.reservation'].search([
                     ('remote_id', '=', service['ser_room_line'][0])
                 ]).id or None,
+                'name': service['name'],
                 'product_qty': service['product_uom_qty'],
                 'price_unit': service['price_unit'],
                 'discount': service['discount'],
@@ -694,7 +696,8 @@ class MigratedHotel(models.Model):
                         remote_ids = rpc_hotel_folio['service_lines'] and rpc_hotel_folio['service_lines']
                         hotel_folio_services = noderpc.env['hotel.service.line'].search_read(
                             [('id', 'in', remote_ids)],
-                            ['product_id',
+                            ['name',
+                             'product_id',
                              'product_uom_qty',
                              'price_unit',
                              'discount',
@@ -702,12 +705,13 @@ class MigratedHotel(models.Model):
                              'ser_room_line',
                              'ser_checkin',
                              'service_line_id',
-                             'last_updated_res',
                              ]
                         )
                         service_line_cmds = self._prepare_folio_service_remote_data(hotel_folio_services)
                         # all services are create in the folio at once
-                        migrated_hotel_folio.service_ids = service_line_cmds
+                        migrated_hotel_folio.with_context(
+                            context_no_mail
+                        ).write({'service_ids': service_line_cmds})
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._uid, migrated_hotel_folio.id, remote_hotel_folio_id)
