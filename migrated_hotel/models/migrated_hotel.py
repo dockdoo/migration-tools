@@ -500,6 +500,8 @@ class MigratedHotel(models.Model):
             reservation_line_cmds.append((0, False, {
                 'date': reservation_line['date'],
                 'price': reservation_line['price'],
+                'discount': reservation['discount'],
+
             }))
         # prepare hotel_room_type related field
         remote_id = reservation['virtual_room_id'] and reservation['virtual_room_id'][0]
@@ -660,6 +662,7 @@ class MigratedHotel(models.Model):
                             ['name',
                              'virtual_room_id',
                              'product_id',
+                             'discount',
                              'checkin',
                              'checkout',
                              'nights',
