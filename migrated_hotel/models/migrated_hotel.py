@@ -114,6 +114,9 @@ class MigratedHotel(models.Model):
         parent_id = rpc_res_partner['parent_id']
         VAT =  rpc_res_partner['vat']
         if parent_id:
+            parent_id = self.env['res.partner'].search([
+                ('remote_id', '=', parent_id[0])
+            ]).id
             VAT = ''
 
         comment = rpc_res_partner['comment'] or ''
