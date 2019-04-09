@@ -30,7 +30,8 @@ class MigratedHotel(models.Model):
     log_ids = fields.One2many('migrated.log', 'migrated_hotel_id')
     cron_ready = fields.Boolean(default=False)
 
-    dummy_backend_id = fields.Many2one('channel.backend')
+    dummy_backend_id = fields.Many2one('channel.backend', require=True)
+    dummy_closure_reason_id = fields.Many2one('room.closure.reason', require=True)
 
     @api.model
     def create(self, vals):
@@ -211,7 +212,7 @@ class MigratedHotel(models.Model):
             # prepare partners of interest
             _logger.info("Preparing 'res.partners' of interest...")
             folio_ids = noderpc.env['hotel.folio'].search_read(
-                [('state', '!=', 'out')],
+                [],
                 ['partner_id']
             )
             partners_folios_set = [x['partner_id'][0] for x in folio_ids]
@@ -481,6 +482,9 @@ class MigratedHotel(models.Model):
             'create_uid': res_create_uid,
             '__last_update': rpc_hotel_folio['__last_update'],
         }
+        if rpc_hotel_folio['reservation_type'] == 'out':
+            vals.update({'closure_reason_id': self.dummy_closure_reason_id.id})
+
         return vals
 
     @api.multi
