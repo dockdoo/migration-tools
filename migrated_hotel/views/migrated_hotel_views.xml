@@ -23,6 +23,7 @@
                                 <field name="odoo_protocol" colspan="2" readonly="1" force_save="1"/>
                                 <field name="odoo_port" colspan="2" readonly="1" force_save="1"/>
                                 <field name="odoo_version" colspan="2" readonly="1"/>
+                                <field name="dummy_backend_id"/>
                             </group>
                         </page>
                     </notebook>

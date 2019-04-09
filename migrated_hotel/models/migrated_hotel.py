@@ -30,6 +30,8 @@ class MigratedHotel(models.Model):
     log_ids = fields.One2many('migrated.log', 'migrated_hotel_id')
     cron_ready = fields.Boolean(default=False)
 
+    dummy_backend_id = fields.Many2one('channel.backend')
+
     @api.model
     def create(self, vals):
         try:
@@ -540,6 +542,19 @@ class MigratedHotel(models.Model):
             'last_updated_res': reservation['last_updated_res'],
             'reservation_line_ids': reservation_line_cmds,
         }
+        if reservation['channel_type'] == 'web':
+            wubook_vals = {
+                'backend_id': self.dummy_backend_id.id,
+                'external_id': reservation['wrid'],
+                'channel_raw_data': reservation['wbook_json'],
+                'ota_id': reservation['wchannel_id'][0] or None,
+                'ota_reservation_id': reservation['wchannel_reservation_code'],
+                'channel_status': reservation['wstatus'],
+                'channel_status_reason': reservation['wstatus_reason'],
+                'channel_modified': reservation['wmodified'],
+            }
+            vals.update({'channel_bind_ids': [(0, False, wubook_vals)]})
+
         return vals
 
     @api.multi
@@ -551,14 +566,19 @@ class MigratedHotel(models.Model):
             if service['channel_type'] != 'web' and fields.Date.from_string(
                     service['ser_checkin']) >= fields.Date.from_string(self.migration_date_d):
                 continue
+
+            ser_room_line = service['ser_room_line'] and service['ser_room_line'][0] or None
+            if ser_room_line:
+                ser_room_line = self.env['hotel.reservation'].search([
+                    ('remote_id', '=', ser_room_line)
+                ]).id or None
+
             # reservations before D-date are migrated with Odoo 10 products
             service_line_cmds.append((0, False, {
                 'product_id': self.env['product.product'].search([
                     ('remote_id', '=', service['product_id'][0])
                 ]).id or None,
-                'ser_room_line': self.env['hotel.reservation'].search([
-                    ('remote_id', '=', service['ser_room_line'][0])
-                ]).id or None,
+                'ser_room_line': ser_room_line,
                 'name': service['name'],
                 'product_qty': service['product_uom_qty'],
                 'price_unit': service['price_unit'],
@@ -634,6 +654,7 @@ class MigratedHotel(models.Model):
                 'tracking_disable': True,
                 'mail_notrack': True,
                 'mail_create_nolog': True,
+                'connector_no_export': True,
             }
             for remote_hotel_folio_id in remote_hotel_folio_ids:
                 try:
@@ -646,6 +667,7 @@ class MigratedHotel(models.Model):
                     migrated_hotel_folio = self.env['hotel.folio'].search([
                         ('remote_id', '=', remote_hotel_folio_id)
                     ]) or None
+
                     if not migrated_hotel_folio:
                         vals = self._prepare_folio_remote_data(
                             rpc_hotel_folio,
@@ -678,6 +700,13 @@ class MigratedHotel(models.Model):
                              'overbooking',
                              'channel_type',
                              'call_center',
+                             'wrid',
+                             'wbook_json',
+                             'wchannel_id',
+                             'wchannel_reservation_code',
+                             'wstatus',
+                             'wstatus_reason',
+                             'wmodified',
                              'last_updated_res',
                              'reservation_lines',
                              ],
