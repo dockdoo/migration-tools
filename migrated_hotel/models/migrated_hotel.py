@@ -596,9 +596,9 @@ class MigratedHotel(models.Model):
         return service_line_cmds
 
     @api.multi
-    def _prepare_folio_payment_remote_data(self, folio, folio_payment, journal_map_ids):
+    def _prepare_folio_payment_remote_data(self, folio, account_payment, journal_map_ids):
         # search res_partner id
-        remote_id = folio_payment['partner_id'] and folio_payment['partner_id'][0]
+        remote_id = account_payment['partner_id'] and account_payment['partner_id'][0]
         res_partner_id = self.env['res.partner'].search([
             ('remote_id', '=', remote_id)
         ]).id or None
@@ -612,24 +612,23 @@ class MigratedHotel(models.Model):
             res_partner_id = folio.partner_id.id
 
         # prepare payment related field
-        remote_id = folio_payment['journal_id'] and folio_payment['journal_id'][0]
+        remote_id = account_payment['journal_id'] and account_payment['journal_id'][0]
         journal_id = remote_id and journal_map_ids.get(remote_id) or None
 
         # prepare payment vals
         return {
+            'remote_id': account_payment['id'],
             'journal_id': journal_id,
             'partner_id': res_partner_id,
-            'amount': folio_payment['amount'],
-            'payment_date': folio_payment['payment_date'],
-            'communication': folio_payment['communication'],
+            'amount': account_payment['amount'],
+            'payment_date': account_payment['payment_date'],
+            'communication': account_payment['communication'],
             'folio_id': folio.id,
             'payment_type': 'inbound',
             'payment_method_id': 1,
             'partner_type': 'customer',
             'state': 'draft'
         }
-
-        return vals
 
     @api.multi
     def action_migrate_reservation(self):
@@ -804,10 +803,10 @@ class MigratedHotel(models.Model):
                         hotel_folio_payments = noderpc.env['account.payment'].search_read(
                             [('id', 'in', remote_ids)]
                         )
-                        for folio_payment in hotel_folio_payments:
+                        for account_payment in hotel_folio_payments:
                             vals = self._prepare_folio_payment_remote_data(
                                 migrated_hotel_folio,
-                                folio_payment,
+                                account_payment,
                                 journal_map_ids)
                             migrated_hotel_payment = self.env['account.payment'].with_context(
                                 context_no_mail
