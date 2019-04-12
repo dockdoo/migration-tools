@@ -250,21 +250,26 @@ class MigratedHotel(models.Model):
             }
             for remote_res_partner_id in remote_partner_ids:
                 try:
-                    rpc_res_partner = noderpc.env['res.partner'].search_read(
-                        [('id', '=', remote_res_partner_id)],
-                    )[0]
-                    vals = self._prepare_partner_remote_data(
-                        rpc_res_partner,
-                        country_map_ids,
-                        country_state_map_ids,
-                        category_map_ids,
-                    )
-                    migrated_res_partner = self.env['res.partner'].with_context(
-                            context_no_mail
-                        ).create(vals)
+                    migrated_res_partner = self.env['res.partner'].search([
+                        ('remote_id', '=', remote_res_partner_id)
+                    ]) or None
 
-                    _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                     self._uid, migrated_res_partner.id, remote_res_partner_id)
+                    if not migrated_res_partner:
+                        rpc_res_partner = noderpc.env['res.partner'].search_read(
+                            [('id', '=', remote_res_partner_id)],
+                        )[0]
+                        vals = self._prepare_partner_remote_data(
+                            rpc_res_partner,
+                            country_map_ids,
+                            country_state_map_ids,
+                            category_map_ids,
+                        )
+                        migrated_res_partner = self.env['res.partner'].with_context(
+                                context_no_mail
+                            ).create(vals)
+    
+                        _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
+                                         self._uid, migrated_res_partner.id, remote_res_partner_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
@@ -287,21 +292,26 @@ class MigratedHotel(models.Model):
             ])
             for remote_res_partner_id in remote_partner_ids:
                 try:
-                    rpc_res_partner = noderpc.env['res.partner'].search_read(
-                        [('id', '=', remote_res_partner_id)],
-                    )[0]
-                    vals = self._prepare_partner_remote_data(
-                        rpc_res_partner,
-                        country_map_ids,
-                        country_state_map_ids,
-                        category_map_ids,
-                    )
-                    migrated_res_partner = self.env['res.partner'].with_context(
-                            context_no_mail
-                        ).create(vals)
+                    migrated_res_partner = self.env['res.partner'].search([
+                        ('remote_id', '=', remote_res_partner_id)
+                    ]) or None
 
-                    _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                     self._uid, migrated_res_partner.id, remote_res_partner_id)
+                    if not migrated_res_partner:
+                        rpc_res_partner = noderpc.env['res.partner'].search_read(
+                            [('id', '=', remote_res_partner_id)],
+                        )[0]
+                        vals = self._prepare_partner_remote_data(
+                            rpc_res_partner,
+                            country_map_ids,
+                            country_state_map_ids,
+                            category_map_ids,
+                        )
+                        migrated_res_partner = self.env['res.partner'].with_context(
+                                context_no_mail
+                            ).create(vals)
+
+                        _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
+                                         self._uid, migrated_res_partner.id, remote_res_partner_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
