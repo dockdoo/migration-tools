@@ -267,7 +267,7 @@ class MigratedHotel(models.Model):
                         migrated_res_partner = self.env['res.partner'].with_context(
                                 context_no_mail
                             ).create(vals)
-    
+
                         _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
                                          self._uid, migrated_res_partner.id, remote_res_partner_id)
 
@@ -382,29 +382,29 @@ class MigratedHotel(models.Model):
             }
             for remote_product_id in remote_product_ids:
                 try:
-                    rpc_product = noderpc.env['product.product'].browse(remote_product_id)
                     migrated_product = self.env['product.product'].search([
                         ('remote_id', '=', remote_product_id)
                     ]) or None
 
-                    # if not migrated_product:
-                    vals = {
-                        'remote_id': remote_product_id,
-                        'name': rpc_product.name,
-                        'taxes_id': [[6, False, [rpc_product.taxes_id.id or 59]]], # vat 10% (services) as default
-                        'list_price': rpc_product.list_price,
-                        'type': 'service',
-                        'sale_ok': True,
-                        'purchase_ok': False,
-                        'active': True,
-                    }
-                    migrated_product = self.env['product.product'].with_context(
-                        context_no_mail
-                    ).create(vals)
-                    #
+                    if not migrated_product:
+                        rpc_product = noderpc.env['product.product'].browse(remote_product_id)
 
-                    _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
-                                 self._uid, migrated_product.id, remote_product_id)
+                        vals = {
+                            'remote_id': remote_product_id,
+                            'name': rpc_product.name,
+                            'taxes_id': [[6, False, [rpc_product.taxes_id.id or 59]]], # vat 10% (services) as default
+                            'list_price': rpc_product.list_price,
+                            'type': 'service',
+                            'sale_ok': True,
+                            'purchase_ok': False,
+                            'active': True,
+                        }
+                        migrated_product = self.env['product.product'].with_context(
+                            context_no_mail
+                        ).create(vals)
+                        #
+                        _logger.info('User #%s migrated product.product with ID [local, remote]: [%s, %s]',
+                                     self._uid, migrated_product.id, remote_product_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
