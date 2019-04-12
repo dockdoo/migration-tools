@@ -559,7 +559,7 @@ class MigratedHotel(models.Model):
                 'backend_id': self.dummy_backend_id.id,
                 'external_id': reservation['wrid'],
                 'channel_raw_data': reservation['wbook_json'],
-                'ota_id': reservation['wchannel_id'][0] or None,
+                'ota_id': reservation['wchannel_id'] and reservation['wchannel_id'][0] or None,
                 'ota_reservation_id': reservation['wchannel_reservation_code'],
                 'channel_status': reservation['wstatus'],
                 'channel_status_reason': reservation['wstatus_reason'],
@@ -719,14 +719,15 @@ class MigratedHotel(models.Model):
                     _logger.info('User #%s started migration of hotel.folio with remote ID: [%s]',
                                  self._uid, remote_hotel_folio_id)
 
-                    rpc_hotel_folio = noderpc.env['hotel.folio'].search_read(
-                        [('id', '=', remote_hotel_folio_id)],
-                    )[0]
                     migrated_hotel_folio = self.env['hotel.folio'].search([
                         ('remote_id', '=', remote_hotel_folio_id)
                     ]) or None
 
                     if not migrated_hotel_folio:
+                        rpc_hotel_folio = noderpc.env['hotel.folio'].search_read(
+                            [('id', '=', remote_hotel_folio_id)],
+                        )[0]
+
                         vals = self._prepare_folio_remote_data(
                             rpc_hotel_folio,
                             res_users_map_ids,
