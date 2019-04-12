@@ -504,11 +504,6 @@ class MigratedHotel(models.Model):
     def _prepare_reservation_remote_data(self, folio_id, reservation,
                                    room_type_map_ids, room_map_ids, noderpc):
 
-        # 'web sale' reservations after D-date are __not__ migrated with this script
-        if reservation['channel_type'] == 'web' and fields.Date.from_string(
-                reservation['checkin']) >= fields.Date.from_string(self.migration_date_d):
-            pass
-
         remote_ids = reservation['reservation_lines'] and reservation['reservation_lines']
         hotel_reservation_lines = noderpc.env['hotel.reservation.line'].search_read(
             [('id', 'in', remote_ids)],
