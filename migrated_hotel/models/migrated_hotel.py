@@ -477,7 +477,6 @@ class MigratedHotel(models.Model):
 
         vals = {
             'remote_id': rpc_hotel_folio['id'],
-            'remote_order_id': rpc_hotel_folio['order_id'][0] or 0,
             'name': rpc_hotel_folio['name'],
             'partner_id': res_partner_id,
             'partner_invoice_id': res_partner_invoice_id,
