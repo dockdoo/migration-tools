@@ -596,6 +596,42 @@ class MigratedHotel(models.Model):
         return service_line_cmds
 
     @api.multi
+    def _prepare_folio_payment_remote_data(self, folio, folio_payment, journal_map_ids):
+        # search res_partner id
+        remote_id = folio_payment['partner_id'] and folio_payment['partner_id'][0]
+        res_partner_id = self.env['res.partner'].search([
+            ('remote_id', '=', remote_id)
+        ]).id or None
+        # take into account merged partners are not active
+        if not res_partner_id:
+            res_partner_id = self.env['res.partner'].search([
+                ('remote_id', '=', remote_id),
+                ('active', '=', False)
+            ]).main_partner_id.id or None
+        if not res_partner_id:
+            res_partner_id = folio.partner_id.id
+
+        # prepare payment related field
+        remote_id = folio_payment['journal_id'] and folio_payment['journal_id'][0]
+        journal_id = remote_id and journal_map_ids.get(remote_id) or None
+
+        # prepare payment vals
+        return {
+            'journal_id': journal_id,
+            'partner_id': res_partner_id,
+            'amount': folio_payment['amount'],
+            'payment_date': folio_payment['payment_date'],
+            'communication': folio_payment['communication'],
+            'folio_id': folio.id,
+            'payment_type': 'inbound',
+            'payment_method_id': 1,
+            'partner_type': 'customer',
+            'state': 'draft'
+        }
+
+        return vals
+
+    @api.multi
     def action_migrate_reservation(self):
         start_time = time.time()
         self.ensure_one()
@@ -651,6 +687,17 @@ class MigratedHotel(models.Model):
                 value = list(remote_xml_id.values())[0]
                 room_id = self.env['ir.model.data'].xmlid_to_res_id(value)
                 room_map_ids.update({remote_hotel_room.product_id.id: room_id})
+
+            # prepare account.journal ids
+            _logger.info("Mapping local with remote 'account.journal' ids...")
+            remote_ids = noderpc.env['account.journal'].search([])
+            remote_records = noderpc.env['account.journal'].browse(remote_ids)
+            journal_map_ids = {}
+            for record in remote_records:
+                res_journal_id = self.env['account.journal'].search([
+                    ('name', '=', record.name),
+                ]).id
+                journal_map_ids.update({record.id: res_journal_id})
 
             # prepare reservation of interest
             _logger.info("Preparing 'hotel.folio' of interest...")
@@ -751,6 +798,23 @@ class MigratedHotel(models.Model):
                         migrated_hotel_folio.with_context(
                             context_no_mail
                         ).write({'service_ids': service_line_cmds})
+
+                        # prepare payment related field
+                        remote_ids = rpc_hotel_folio['payment_ids'] and rpc_hotel_folio['payment_ids']
+                        hotel_folio_payments = noderpc.env['account.payment'].search_read(
+                            [('id', 'in', remote_ids)]
+                        )
+                        for folio_payment in hotel_folio_payments:
+                            vals = self._prepare_folio_payment_remote_data(
+                                migrated_hotel_folio,
+                                folio_payment,
+                                journal_map_ids)
+                            migrated_hotel_payment = self.env['account.payment'].with_context(
+                                context_no_mail
+                            ).create(vals)
+                            migrated_hotel_payment.with_context(
+                                {'ignore_notification_post': True}
+                            ).post()
 
                     _logger.info('User #%s migrated hotel.folio with ID [local, remote]: [%s, %s]',
                                  self._uid, migrated_hotel_folio.id, remote_hotel_folio_id)
