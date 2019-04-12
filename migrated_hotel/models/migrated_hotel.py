@@ -840,6 +840,79 @@ class MigratedHotel(models.Model):
             noderpc.logout()
 
     @api.multi
+    def action_migrate_payment_return(self):
+        start_time = time.time()
+        self.ensure_one()
+        try:
+            noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
+            noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+
+        try:
+            _logger.info("Preparing 'payment.return' of interest...")
+            remote_payment_return_ids = noderpc.env['payment.return'].search(
+                [('state', '=', 'done')]
+            )
+            _logger.info("Migrating 'payment.return'...")
+            # disable mail feature to speed-up migration
+            context_no_mail = {
+                'tracking_disable': True,
+                'mail_notrack': True,
+                'mail_create_nolog': True,
+            }
+            for payment_return_id in remote_payment_return_ids:
+                try:
+                    payment_return_line = noderpc.env['payment.return'].browse(payment_return_id).line_ids
+
+                    # prepare related payment
+                    remote_payment_id = payment_return_line.move_line_ids.payment_id.id
+                    account_payment = self.env['account.payment'].search([
+                        ('remote_id','=', remote_payment_id)
+                    ]) or None
+                    account_move_lines = account_payment.move_line_ids.filtered(
+                        lambda x: (x.account_id.internal_type == 'receivable')
+                    )
+                    line_ids_vals = {
+                        'move_line_ids': [(6, False, [x.id for x in account_move_lines])],
+                        'partner_id': account_payment.partner_id.id,
+                        'amount': payment_return_line.amount,
+                        'reference': payment_return_line.reference,
+                    }
+                    vals = {
+                        'journal_id': account_payment.journal_id.id,
+                        'line_ids': [(0, 0, line_ids_vals)],
+                    }
+                    payment_return = self.env['payment.return'].with_context(
+                        context_no_mail
+                    ).create(vals)
+                    payment_return.action_confirm()
+
+                    _logger.info('User #%s migrated payment.return for account.payment with ID [local, remote]: [%s, %s]',
+                                 self._uid, account_payment.id, remote_payment_id)
+
+                except (ValueError, ValidationError, Exception) as err:
+                    migrated_log = self.env['migrated.log'].create({
+                        'name': err,
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'model': 'return',
+                        'remote_id': payment_return_id,
+                    })
+                    _logger.error('Remote payment.return with ID remote: [%s] with ERROR LOG #%s: (%s)',
+                                  payment_return_id, migrated_log.id, err)
+                    continue
+
+            time_migration_products = (time.time() - start_time) / 60
+            _logger.info('action_migrate_invoice elapsed time: %s minutes',
+                         time_migration_products)
+
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+        else:
+            noderpc.logout()
+
+    @api.multi
     def action_clean_up(self):
         start_time = time.time()
         self.ensure_one()

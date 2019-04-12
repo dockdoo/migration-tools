@@ -54,11 +54,27 @@
                                     <field name="migration_date_d"/>
                                     <field name="cron_ready"/>
                                 </group>
-                                <button name="action_migrate_reservation" colspan="2"
-                                        type="object"
-                                        class="oe_highlight"
-                                        string="Import reservations crossing the D-date"
-                                        confirm="Import Reservations using D-date as limit for services lines. Do you want to proceed?"/>
+                                <group>
+                                    <button name="action_migrate_reservation"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import reservations crossing the D-date"
+                                            confirm="Import Reservations using D-date as limit for services lines. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_invoice"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import invoices crossing the D-date"
+                                            confirm="Import Invoices __after__ reservations. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_payment_return"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import payment returns"
+                                            confirm="Import Payment Returns __after__ reservations. Do you want to proceed?"/>
+                                </group>
                             </group>
                         </page>
                         <page name="logs" string="Logs" attrs="{'invisible':[('id','=',False)]}">

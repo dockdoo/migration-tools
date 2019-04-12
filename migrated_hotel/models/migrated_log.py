@@ -13,7 +13,8 @@ class MigrateLog(models.Model):
     model = fields.Selection([
         ('partner', 'res.partner'),
         ('product', 'product.product'),
-        ('folio', 'hotel.folio')
+        ('folio', 'hotel.folio'),
+        ('return', 'payment.return'),
     ])
     remote_id = fields.Integer(
         copy=False, readonly=True,
