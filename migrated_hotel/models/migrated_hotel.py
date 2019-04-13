@@ -17,16 +17,17 @@ class MigratedHotel(models.Model):
 
     name = fields.Char('Name')
     odoo_host = fields.Char('Host', required=True, help='Full URL to the host.')
-    odoo_db = fields.Char('Database Name', help='Odoo database name.')
-    odoo_user = fields.Char('Username', help='Odoo administration user.')
-    odoo_password = fields.Char('Password', help='Odoo password.')
-    odoo_port = fields.Integer(string='TCP Port', default=443,
+    odoo_db = fields.Char('Database Name', required=True, help='Odoo database name.')
+    odoo_user = fields.Char('Username', required=True, help='Odoo administration user.')
+    odoo_password = fields.Char('Password', required=True, help='Odoo password.')
+    odoo_port = fields.Integer(string='TCP Port', required=True, default=443,
                                help='Specify the TCP port for the XML-RPC protocol.')
     odoo_protocol = fields.Selection([('jsonrpc+ssl', 'jsonrpc+ssl')],
                                      'Protocol', required=True, default='jsonrpc+ssl')
     odoo_version = fields.Char()
 
-    migration_date_d = fields.Date('Migration D-date')
+    migration_date_d = fields.Date('Migration D-date', required=True)
+    migration_date_service_d = fields.Date('Migration services D-date', required=True)
     migration_before_date_d = fields.Boolean('Migrate data before D-date', default=True)
     migration_date_operator = fields.Char(default='<')
 
@@ -558,13 +559,18 @@ class MigratedHotel(models.Model):
             'adults': reservation['adults'],
             'children': reservation['children'],
             'splitted': reservation['splitted'],
-            # 'parent_reservation': not yet implemented,
             'overbooking': reservation['overbooking'],
             'channel_type': reservation['channel_type'],
             'call_center': reservation['call_center'],
             'last_updated_res': reservation['last_updated_res'],
             'reservation_line_ids': reservation_line_cmds,
         }
+        if reservation['parent_reservation']:
+            parent_reservation_id = self.env['hotel.reservation'].search([
+                ('remote_id', '=', reservation['parent_reservation'][0])
+            ]).id or None
+            vals.update({'parent_reservation': parent_reservation_id})
+
         if reservation['channel_type'] == 'web':
             wubook_vals = {
                 'backend_id': self.backend_id.id,
@@ -585,9 +591,9 @@ class MigratedHotel(models.Model):
 
         service_line_cmds = []
         for service in hotel_folio_services:
-            # 'direct sale' reservations after D-date are migrated with no products
-            if service['channel_type'] != 'web' and fields.Date.from_string(
-                    service['ser_checkin']) >= fields.Date.from_string(self.migration_date_d):
+            # __ANY__ reservation after D-date is migrated with no products
+            if fields.Date.from_string(
+                    service['ser_checkin']) >= fields.Date.from_string(self.migration_date_service_d):
                 continue
 
             ser_room_line = service['ser_room_line'] and service['ser_room_line'][0] or None
@@ -651,9 +657,6 @@ class MigratedHotel(models.Model):
         start_time = time.time()
         self.ensure_one()
 
-        if not self.migration_date_d:
-            raise ValidationError('Set a Migration D-date before proceed.')
-
         try:
             noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
             noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
@@ -716,7 +719,14 @@ class MigratedHotel(models.Model):
 
             # prepare reservation of interest
             _logger.info("Preparing 'hotel.folio' of interest...")
-            remote_hotel_folio_ids = noderpc.env['hotel.folio'].search([])
+            remote_hotel_reservation_ids = noderpc.env['hotel.reservation'].search_read(
+                [('checkout', self.migration_date_operator, self.migration_date_d)],
+                ['folio_id']
+            )
+            remote_ids = [x['folio_id'][0] for x in remote_hotel_reservation_ids]
+            # remove any duplicate values
+            remote_hotel_folio_ids = list(dict.fromkeys(remote_ids))
+
             _logger.info("Migrating 'hotel.folio'...")
             # disable mail feature to speed-up migration
             context_no_mail = {
@@ -766,7 +776,7 @@ class MigratedHotel(models.Model):
                              'adults',
                              'children',
                              'splitted',
-                             # 'parent_reservation': not yet implemented,
+                             'parent_reservation',
                              'overbooking',
                              'channel_type',
                              'call_center',
@@ -792,7 +802,6 @@ class MigratedHotel(models.Model):
                             migrated_hotel_reservation = self.env['hotel.reservation'].with_context(
                                 context_no_mail
                             ).create(vals)
-                        # TODO: update parent_reservation_id for splitted reservation
 
                         # prepare service_lines related field
                         remote_ids = rpc_hotel_folio['service_lines'] and rpc_hotel_folio['service_lines']
