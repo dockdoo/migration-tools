@@ -300,6 +300,7 @@ class MigratedHotel(models.Model):
                 ('id', 'in', remote_partner_set_ids),
                 ('parent_id', '!=', False),
                 ('user_ids', '=', False),
+                ('create_date', self.migration_date_operator, self.migration_date_d),
             ])
             for remote_res_partner_id in remote_partner_ids:
                 try:
