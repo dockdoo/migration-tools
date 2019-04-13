@@ -26,8 +26,10 @@ class MigratedHotel(models.Model):
                                      'Protocol', required=True, default='jsonrpc+ssl')
     odoo_version = fields.Char()
 
-    migration_date_d = fields.Date('Migration D-date', required=True)
-    migration_date_service_d = fields.Date('Migration services D-date', required=True)
+    migration_date_d = fields.Date('Migration D-date', required=True,
+                                   default=fields.Datetime.now())
+    migration_date_service_d = fields.Date('Migration services D-date', required=True,
+                                           default=fields.Datetime.now())
     migration_before_date_d = fields.Boolean('Migrate data before D-date', default=True)
     migration_date_operator = fields.Char(default='<')
 
