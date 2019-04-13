@@ -253,6 +253,7 @@ class MigratedHotel(models.Model):
                 ('parent_id', '=', False),
                 ('user_ids', '=', False),
                 ('create_date', self.migration_date_operator, self.migration_date_d),
+                '|', ('active', '=', True), ('active', '=', False),
             ])
             # disable mail feature to speed-up migration
             context_no_mail = {
@@ -302,6 +303,7 @@ class MigratedHotel(models.Model):
                 ('parent_id', '!=', False),
                 ('user_ids', '=', False),
                 ('create_date', self.migration_date_operator, self.migration_date_d),
+                '|', ('active', '=', True), ('active', '=', False),
             ])
             for remote_res_partner_id in remote_partner_ids:
                 try:
