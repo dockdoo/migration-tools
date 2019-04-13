@@ -27,11 +27,20 @@ class MigratedHotel(models.Model):
     odoo_version = fields.Char()
 
     migration_date_d = fields.Date('Migration D-date')
-    log_ids = fields.One2many('migrated.log', 'migrated_hotel_id')
-    cron_ready = fields.Boolean(default=False)
+    migration_before_date_d = fields.Boolean('Migrate data before D-date', default=True)
+    migration_date_operator = fields.Char(default='<')
 
-    dummy_backend_id = fields.Many2one('channel.backend', require=True)
+    log_ids = fields.One2many('migrated.log', 'migrated_hotel_id')
+
+    backend_id = fields.Many2one('channel.backend', require=True)
     dummy_closure_reason_id = fields.Many2one('room.closure.reason', require=True)
+
+    @api.onchange('migration_before_date_d')
+    def onchange_migration_before_date_d(self):
+        if self.migration_before_date_d:
+            self.migration_date_operator = '<'
+        else:
+            self.migration_date_operator = '>='
 
     @api.model
     def create(self, vals):
@@ -171,6 +180,7 @@ class MigratedHotel(models.Model):
     def action_migrate_res_partners(self):
         start_time = time.time()
         self.ensure_one()
+
         try:
             noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
             noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
@@ -241,6 +251,7 @@ class MigratedHotel(models.Model):
                 ('id', 'in', remote_partner_set_ids),
                 ('parent_id', '=', False),
                 ('user_ids', '=', False),
+                ('create_date', self.migration_date_operator, self.migration_date_d),
             ])
             # disable mail feature to speed-up migration
             context_no_mail = {
@@ -555,7 +566,7 @@ class MigratedHotel(models.Model):
         }
         if reservation['channel_type'] == 'web':
             wubook_vals = {
-                'backend_id': self.dummy_backend_id.id,
+                'backend_id': self.backend_id.id,
                 'external_id': reservation['wrid'],
                 'channel_raw_data': reservation['wbook_json'],
                 'ota_id': reservation['wchannel_id'] and reservation['wchannel_id'][0] or None,
@@ -929,17 +940,13 @@ class MigratedHotel(models.Model):
 
     @api.model
     def cron_migrate_res_partners(self):
-        hotel = self.env[self._name].search([
-            ('cron_ready', '=', True)
-        ])
+        hotel = self.env[self._name].search([])
         hotel.action_migrate_res_partners()
         hotel.action_clean_up()
 
     @api.model
     def cron_migrate_reservations(self):
-        hotel = self.env[self._name].search([
-            ('cron_ready', '=', True)
-        ])
+        hotel = self.env[self._name].search([])
         hotel.action_migrate_reservation()
         hotel.action_clean_up()
 
