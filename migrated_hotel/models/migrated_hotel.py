@@ -268,9 +268,10 @@ class MigratedHotel(models.Model):
                     ]) or None
 
                     if not migrated_res_partner:
-                        rpc_res_partner = noderpc.env['res.partner'].search_read(
-                            [('id', '=', remote_res_partner_id)],
-                        )[0]
+                        rpc_res_partner = noderpc.env['res.partner'].search_read([
+                            ('id', '=', remote_res_partner_id),
+                            '|', ('active', '=', True), ('active', '=', False),
+                        ])[0]
                         vals = self._prepare_partner_remote_data(
                             rpc_res_partner,
                             country_map_ids,
@@ -312,9 +313,10 @@ class MigratedHotel(models.Model):
                     ]) or None
 
                     if not migrated_res_partner:
-                        rpc_res_partner = noderpc.env['res.partner'].search_read(
-                            [('id', '=', remote_res_partner_id)],
-                        )[0]
+                        rpc_res_partner = noderpc.env['res.partner'].search_read([
+                            ('id', '=', remote_res_partner_id),
+                            '|', ('active', '=', True), ('active', '=', False),
+                        ])[0]
                         vals = self._prepare_partner_remote_data(
                             rpc_res_partner,
                             country_map_ids,
