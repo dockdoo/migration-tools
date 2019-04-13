@@ -15,6 +15,7 @@ class MigrateLog(models.Model):
         ('product', 'product.product'),
         ('folio', 'hotel.folio'),
         ('return', 'payment.return'),
+        ('invoice', 'account.invoice'),
     ])
     remote_id = fields.Integer(
         copy=False, readonly=True,

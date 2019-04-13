@@ -411,7 +411,7 @@ class MigratedHotel(models.Model):
                         vals = {
                             'remote_id': remote_product_id,
                             'name': rpc_product.name,
-                            'taxes_id': [[6, False, [rpc_product.taxes_id.id or 59]]], # vat 10% (services) as default
+                            'taxes_id': [[6, False, [rpc_product.taxes_id.id or 59]]], # 10% (services) as default
                             'list_price': rpc_product.list_price,
                             'type': 'service',
                             'sale_ok': True,
@@ -933,6 +933,134 @@ class MigratedHotel(models.Model):
                     })
                     _logger.error('Remote payment.return with ID remote: [%s] with ERROR LOG #%s: (%s)',
                                   payment_return_id, migrated_log.id, err)
+                    continue
+
+            time_migration_products = (time.time() - start_time) / 60
+            _logger.info('action_migrate_invoice elapsed time: %s minutes',
+                         time_migration_products)
+
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+        else:
+            noderpc.logout()
+
+    @api.multi
+    def _prepare_invoice_remote_data(self, account_invoice, noderpc):
+        # prepare partner_id related field
+        default_res_partner = self.env['res.partner'].search([
+            ('user_ids', 'in', self._context.get('uid', self._uid))
+        ])
+        # search res_partner id
+        remote_id = account_invoice['partner_id'] and account_invoice['partner_id'][0]
+        res_partner_id = self.env['res.partner'].search([
+            ('remote_id', '=', remote_id)
+        ]).id or None
+        # take into account merged partners are not active
+        if not res_partner_id:
+            res_partner_id = self.env['res.partner'].search([
+                ('remote_id', '=', remote_id),
+                ('active', '=', False)
+            ]).main_partner_id.id or None
+        res_partner_id = res_partner_id or default_res_partner.id
+
+        remote_ids = account_invoice['invoice_line_ids'] and account_invoice['invoice_line_ids']
+        invoice_lines = noderpc.env['account.invoice.line'].search_read(
+            [('id', 'in', remote_ids)])
+        invoice_line_cmds = []
+        # prepare invoice lines
+        for invoice_line in invoice_lines:
+            # take invoice line taxes
+            invoice_line_tax_ids = invoice_line['invoice_line_tax_ids'] and invoice_line['invoice_line_tax_ids'][0] or False
+            invoice_line_cmds.append((0, False, {
+                'name': invoice_line['name'],
+                'origin': invoice_line['origin'],
+                # [480, '700000 Ventas de mercaderías en España']
+                'account_id': invoice_line['account_id'] and invoice_line['account_id'][0] or 480,
+                'price_unit': invoice_line['price_unit'],
+                'quantity': invoice_line['quantity'],
+                'discount': invoice_line['discount'],
+                'uom_id': invoice_line['uom_id'] and invoice_line['uom_id'][0] or 1,
+                'invoice_line_tax_ids': [[6, False, [invoice_line_tax_ids or 59]]], # 10% (services) as defaults default
+            }))
+
+        folio_ids = self.env['hotel.folio'].search([
+            ('remote_id', 'in', account_invoice['folio_ids'])
+        ]).ids
+
+        vals = {
+            'number': account_invoice['number'],
+            'name': account_invoice['name'],
+            'origin': account_invoice['name'],
+            'type': 'out_invoice',
+            'reference': False,
+            'folio_ids': folio_ids,
+            # [193, '430000 Clientes (euros)']
+            'account_id': account_invoice['account_id'] and account_invoice['account_id'][0] or 193,
+            'partner_id': res_partner_id,
+            # [1, 'EUR']
+            'currency_id': account_invoice['currency_id'] and account_invoice['currency_id'][0] or 1,
+            'comment': account_invoice['comment'],
+            'invoice_line_ids': invoice_line_cmds,
+        }
+
+        return vals
+
+    @api.multi
+    def action_migrate_invoice(self):
+        start_time = time.time()
+        self.ensure_one()
+        try:
+            noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
+            noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+
+        try:
+            _logger.info("Preparing 'account.invoice' of interest...")
+            remote_account_invoice_ids = noderpc.env['account.invoice'].search([
+                ('state', 'not in', ['draft', 'cancel'])
+            ])
+            _logger.info("Migrating 'account.invoice'...")
+            # disable mail feature to speed-up migration
+            context_no_mail = {
+                'tracking_disable': True,
+                'mail_notrack': True,
+                'mail_create_nolog': True,
+            }
+            for remote_account_invoice_id in remote_account_invoice_ids:
+                try:
+                    migrated_account_invoice = self.env['account.invoice'].search([
+                        ('remote_id', '=', remote_account_invoice_id)
+                    ]) or None
+
+                    if not migrated_account_invoice:
+                        rpc_account_invoice = noderpc.env['account.invoice'].search_read(
+                            [('id', '=', remote_account_invoice_id)],
+                        )[0]
+
+                        vals = self._prepare_invoice_remote_data(
+                            rpc_account_invoice,
+                            noderpc,
+                        )
+                        migrated_account_invoice = self.env['account.invoice'].with_context(
+                            context_no_mail
+                        ).create(vals)
+                        # this function require a valid vat number in the associated partner_id
+                        migrated_account_invoice.action_invoice_open()
+
+                    _logger.info('User #%s migrated account.invoice with ID [local, remote]: [%s, %s]',
+                                 self._uid, migrated_account_invoice.id, remote_account_invoice_id)
+
+                except (ValueError, ValidationError, Exception) as err:
+                    migrated_log = self.env['migrated.log'].create({
+                        'name': err,
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'model': 'invoice',
+                        'remote_id': remote_account_invoice_id,
+                    })
+                    _logger.error('Remote account.invoioce with ID remote: [%s] with ERROR LOG #%s: (%s)',
+                                  remote_account_invoice_id, migrated_log.id, err)
                     continue
 
             time_migration_products = (time.time() - start_time) / 60

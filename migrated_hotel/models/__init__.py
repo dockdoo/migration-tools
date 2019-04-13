@@ -7,3 +7,4 @@ from . import inherited_product_template
 from . import inherited_hotel_folio
 from . import inherited_hotel_reservation
 from . import inherited_account_payment
+from . import inherited_account_invoice

@@ -4,9 +4,9 @@
 from odoo import models, fields, api
 
 
-class AccountPayment(models.Model):
+class AccountInvoice(models.Model):
 
-    _inherit = 'account.payment'
+    _inherit = 'account.invoice'
 
     remote_id = fields.Integer(require=True, copy=False, readonly=True,
             help="ID of the target record in the previous version")
