@@ -988,9 +988,13 @@ class MigratedHotel(models.Model):
         ]).ids
 
         vals = {
+            'remote_id': account_invoice['id'],
             'number': account_invoice['number'],
+            'invoice_number': account_invoice['invoice_number'],
             'name': account_invoice['name'],
+            'display_name': account_invoice['display_name'],
             'origin': account_invoice['name'],
+            'date_invoice': account_invoice['date_invoice'],
             'type': 'out_invoice',
             'reference': False,
             'folio_ids': folio_ids,
@@ -1042,11 +1046,32 @@ class MigratedHotel(models.Model):
                             rpc_account_invoice,
                             noderpc,
                         )
+
                         migrated_account_invoice = self.env['account.invoice'].with_context(
                             context_no_mail
                         ).create(vals)
                         # this function require a valid vat number in the associated partner_id
                         migrated_account_invoice.action_invoice_open()
+                        #
+                        payment_ids = self.env['account.payment'].search([
+                            ('remote_id', 'in', rpc_account_invoice['payment_ids'])
+                        ]).ids or None
+                        #
+                        if payment_ids:
+                            domain = [
+                                ('account_id', '=', migrated_account_invoice.account_id.id),
+                                ('payment_id', 'in', payment_ids),
+                                ('reconciled', '=', False),
+                                '|', ('amount_residual', '!=', 0.0),
+                                ('amount_residual_currency', '!=', 0.0)
+                            ]
+                            if migrated_account_invoice.type in ('out_invoice', 'in_refund'):
+                                domain.extend([('credit', '>', 0), ('debit', '=', 0)])
+                            else:
+                                domain.extend([('credit', '=', 0), ('debit', '>', 0)])
+                            lines = self.env['account.move.line'].search(domain)
+                            for line in lines:
+                                migrated_account_invoice.assign_outstanding_credit(line.id)
 
                     _logger.info('User #%s migrated account.invoice with ID [local, remote]: [%s, %s]',
                                  self._uid, migrated_account_invoice.id, remote_account_invoice_id)
