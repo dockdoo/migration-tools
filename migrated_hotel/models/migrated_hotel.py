@@ -732,6 +732,14 @@ class MigratedHotel(models.Model):
             remote_ids = [x['folio_id'][0] for x in remote_hotel_reservation_ids]
             # remove any duplicate values
             remote_hotel_folio_ids = list(dict.fromkeys(remote_ids))
+            # add hotel.folios with no reservation when processing data before D-date
+            if self.migration_date_operator == '<':
+                remote_hotel_folio_extra_ids = noderpc.env['hotel.folio'].search([
+                    ('room_lines', '=', None)
+                ]) or []
+                remote_hotel_folio_ids = list(set().union(
+                    remote_hotel_folio_ids, remote_hotel_folio_extra_ids
+                ))
 
             _logger.info("Migrating 'hotel.folio'...")
             # disable mail feature to speed-up migration
@@ -915,6 +923,7 @@ class MigratedHotel(models.Model):
                         'journal_id': account_payment.journal_id.id,
                         'line_ids': [(0, 0, line_ids_vals)],
                     }
+
                     payment_return = self.env['payment.return'].with_context(
                         context_no_mail
                     ).create(vals)
@@ -1132,6 +1141,11 @@ class MigratedHotel(models.Model):
         hotel = self.env[self._name].search([])
         hotel.action_migrate_reservation()
         hotel.action_clean_up()
+
+    @api.model
+    def cron_migrate_invoice(self):
+        hotel = self.env[self._name].search([])
+        hotel.action_migrate_invoice()
 
     @api.model
     def cron_migrate_hotel(self):
