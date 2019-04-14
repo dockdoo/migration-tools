@@ -520,7 +520,7 @@ class MigratedHotel(models.Model):
 
     @api.multi
     def _prepare_reservation_remote_data(self, folio_id, reservation,
-                                   room_type_map_ids, room_map_ids, noderpc):
+                                   room_type_map_ids, room_map_ids, ota_map_ids, noderpc):
 
         remote_ids = reservation['reservation_lines'] and reservation['reservation_lines']
         hotel_reservation_lines = noderpc.env['hotel.reservation.line'].search_read(
@@ -541,6 +541,9 @@ class MigratedHotel(models.Model):
         # prepare hotel_room related field
         remote_id = reservation['product_id'] and reservation['product_id'][0]
         room_id = remote_id and room_map_ids.get(remote_id) or None
+        # prepare channel_ota_info related field
+        remote_id = reservation['wchannel_id'] and reservation['wchannel_id'][0] or None
+        ota_id = remote_id and ota_map_ids.get(remote_id) or None
         # prepare hotel.folio.room_lines
         vals = {
             'folio_id': folio_id,
@@ -582,7 +585,7 @@ class MigratedHotel(models.Model):
                 'backend_id': self.backend_id.id,
                 'external_id': reservation['wrid'],
                 'channel_raw_data': reservation['wbook_json'],
-                'ota_id': reservation['wchannel_id'] and reservation['wchannel_id'][0] or None,
+                'ota_id': ota_id,
                 'ota_reservation_id': reservation['wchannel_reservation_code'],
                 'channel_status': reservation['wstatus'],
                 'channel_status_reason': reservation['wstatus_reason'],
@@ -680,6 +683,7 @@ class MigratedHotel(models.Model):
                     ('login', '=', record.login),
                 ]).id or self._context.get('uid', self._uid)
                 res_users_map_ids.update({record.id: res_users_id})
+
             # prepare res.partner.category ids
             _logger.info("Mapping local with remote 'res.partner.category' ids...")
             remote_ids = noderpc.env['res.partner.category'].search([])
@@ -691,6 +695,7 @@ class MigratedHotel(models.Model):
                     ('parent_id.name', '=', record.parent_id.name),
                 ]).id
                 category_map_ids.update({record.id: res_partner_category_id})
+
             # prepare hotel.room.type ids
             _logger.info("Mapping local with remote 'hotel.room.type' ids...")
             remote_ids = noderpc.env['hotel.virtual.room'].search([])
@@ -700,6 +705,7 @@ class MigratedHotel(models.Model):
             for key, value in remote_xml_ids.items():
                 room_type_id = self.env['ir.model.data'].xmlid_to_res_id(value)
                 room_type_map_ids.update({int(key): room_type_id})
+
             # prepare hotel.room ids
             _logger.info("Mapping local with remote 'hotel.room' ids...")
             remote_ids = noderpc.env['hotel.room'].search([])
@@ -711,6 +717,17 @@ class MigratedHotel(models.Model):
                 value = list(remote_xml_id.values())[0]
                 room_id = self.env['ir.model.data'].xmlid_to_res_id(value)
                 room_map_ids.update({remote_hotel_room.product_id.id: room_id})
+
+            # prepare channel.ota.info ids
+            _logger.info("Mapping local with remote 'channel.ota.info' ids...")
+            remote_ids = noderpc.env['wubook.channel.info'].search([])
+            remote_records = noderpc.env['wubook.channel.info'].browse(remote_ids)
+            ota_map_ids = {}
+            for record in remote_records:
+                res_ota_id = self.env['channel.ota.info'].search([
+                    ('ota_id', '=', int(record.wid)),
+                ]).id
+                ota_map_ids.update({record.id: res_ota_id})
 
             # prepare account.journal ids
             _logger.info("Mapping local with remote 'account.journal' ids...")
@@ -812,6 +829,7 @@ class MigratedHotel(models.Model):
                                 reservation,
                                 room_type_map_ids,
                                 room_map_ids,
+                                ota_map_ids,
                                 noderpc)
                             migrated_hotel_reservation = self.env['hotel.reservation'].with_context(
                                 context_no_mail
