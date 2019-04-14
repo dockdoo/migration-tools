@@ -1107,6 +1107,20 @@ class MigratedHotel(models.Model):
         _logger.info('action_clean_up elapsed time: %s minutes',
                      time_migration_partners)
 
+    @api.multi
+    def action_migrate_debug(self):
+        start_time = time.time()
+        self.ensure_one()
+
+        try:
+            noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
+            noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+
+        import wdb
+        wdb.set_trace()
+
     @api.model
     def cron_migrate_res_partners(self):
         hotel = self.env[self._name].search([])

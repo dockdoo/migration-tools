@@ -48,6 +48,13 @@
                                             string="Import Products"
                                             confirm="Import Products needed for migrating the reservations. Do you want to proceed?"/>
                                 </group>
+                                <group>
+                                    <button name="action_migrate_debug"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Launch debugger"
+                                            confirm="You can launch your browser for debugging. Do you want to proceed?"/>
+                                </group>
                             </group>
                             <group col="4">
                                 <group>
@@ -62,14 +69,16 @@
                                             type="object"
                                             class="oe_highlight"
                                             string="Import reservations crossing the D-date"
+                                            help="Import reservations automatically create Folio, Reservations, Services and Payments."
                                             confirm="Import Reservations using D-date as limit for services lines. Do you want to proceed?"/>
                                 </group>
                                 <group>
                                     <button name="action_migrate_invoice"
                                             type="object"
                                             class="oe_highlight"
-                                            string="Import invoices crossing the D-date"
-                                            confirm="Import Invoices __after__ reservations. Do you want to proceed?"/>
+                                            string="Import invoices"
+                                            help="Import Invoices __after__ reservations to assign payments automatically."
+                                            confirm="Please disable Check Chronology in Customer Invoices. Do you want to proceed?"/>
                                 </group>
                                 <group>
                                     <button name="action_migrate_payment_return"
