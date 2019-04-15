@@ -752,7 +752,7 @@ class MigratedHotel(models.Model):
             # add hotel.folios with no reservation when processing data before D-date
             if self.migration_date_operator == '<':
                 remote_hotel_folio_extra_ids = noderpc.env['hotel.folio'].search([
-                    ('room_lines', '=', None)
+                    ('room_lines', '=', False)
                 ]) or []
                 remote_hotel_folio_ids = list(set().union(
                     remote_hotel_folio_ids, remote_hotel_folio_extra_ids
