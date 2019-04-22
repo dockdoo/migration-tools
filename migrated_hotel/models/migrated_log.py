@@ -14,6 +14,9 @@ class MigrateLog(models.Model):
         ('partner', 'res.partner'),
         ('product', 'product.product'),
         ('folio', 'hotel.folio'),
+        ('reservation', 'hotel.reservation'),
+        ('service', 'hotel.service'),
+        ('payment', 'account.payment'),
         ('return', 'payment.return'),
         ('invoice', 'account.invoice'),
     ])

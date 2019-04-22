@@ -35,18 +35,70 @@
                             <group col="4">
                                 <group colspan="1">
                                     <field name="migration_date_d"/>
-                                    <field name="migration_date_service_d"/>
                                 </group>
                                 <group>
                                     <field name="migration_before_date_d"/>
                                     <field name="migration_date_operator" invisible="1"/>
                                 </group>
+                            </group>
+                            <group col="4">
                                 <group>
                                     <button name="action_migrate_products"
                                             type="object"
                                             class="oe_highlight"
-                                            string="Import Products"
+                                            string="Import All Products"
                                             confirm="Import Products needed for migrating the reservations. Do you want to proceed?"/>
+                                </group>
+
+                                <group>
+                                    <button name="action_migrate_partners"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import Partners crossing the D-date"
+                                            confirm="Import Partners automatically merge Partners in this Node. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_folios"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import Folios crossing the D-date"
+                                            confirm="Import Folios before/after D-date. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_reservations"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import Reservations crossing the D-date"
+                                            confirm="Import Reservations __after__ Folios using before/after D-date. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_services"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import Services crossing the D-date"
+                                            confirm="Import Services __after__ Folios using before/after D-date. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_payments"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import All Account Payments"
+                                            confirm="Import __all__ Account Payments __after__ Reservations + Services. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_payment_returns"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import All Payment Returns"
+                                            confirm="Import __all__ Payment Returns __after__ Account Payments. Do you want to proceed?"/>
+                                </group>
+                                <group>
+                                    <button name="action_migrate_invoices"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Import All Invoices"
+                                            help="Import Invoices __after__ reservations to assign payments automatically."
+                                            confirm="Please disable Check Chronology in Customer Invoices. Do you want to proceed?"/>
                                 </group>
                                 <group>
                                     <button name="action_migrate_debug"
@@ -54,38 +106,6 @@
                                             class="oe_highlight"
                                             string="Launch debugger"
                                             confirm="You can launch your browser for debugging. Do you want to proceed?"/>
-                                </group>
-                            </group>
-                            <group col="4">
-                                <group>
-                                    <button name="action_migrate_res_partners"
-                                            type="object"
-                                            class="oe_highlight"
-                                            string="Import Partners crossing the D-date"
-                                            confirm="Import Partners automatically merge Partners in this Node. Do you want to proceed?"/>
-                                </group>
-                                <group>
-                                    <button name="action_migrate_reservation"
-                                            type="object"
-                                            class="oe_highlight"
-                                            string="Import reservations crossing the D-date"
-                                            help="Import reservations automatically create Folio, Reservations, Services and Payments."
-                                            confirm="Import Reservations using D-date as limit for services lines. Do you want to proceed?"/>
-                                </group>
-                                <group>
-                                    <button name="action_migrate_invoice"
-                                            type="object"
-                                            class="oe_highlight"
-                                            string="Import invoices"
-                                            help="Import Invoices __after__ reservations to assign payments automatically."
-                                            confirm="Please disable Check Chronology in Customer Invoices. Do you want to proceed?"/>
-                                </group>
-                                <group>
-                                    <button name="action_migrate_payment_return"
-                                            type="object"
-                                            class="oe_highlight"
-                                            string="Import payment returns"
-                                            confirm="Import Payment Returns __after__ reservations. Do you want to proceed?"/>
                                 </group>
                             </group>
                         </page>
