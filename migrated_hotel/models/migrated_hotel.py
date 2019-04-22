@@ -280,7 +280,7 @@ class MigratedHotel(models.Model):
                     if not migrated_res_partner:
                         _logger.info('User #%s started migration of res.partner with remote ID: [%s]',
                                      self._uid, remote_res_partner_id)
-                        
+
                         rpc_res_partner = noderpc.env['res.partner'].search_read([
                             ('id', '=', remote_res_partner_id),
                             '|', ('active', '=', True), ('active', '=', False),
@@ -716,9 +716,8 @@ class MigratedHotel(models.Model):
 
             # prepare reservation of interest
             _logger.info("Preparing 'hotel.reservation' of interest...")
-            remote_hotel_reservation_ids = noderpc.env['hotel.reservation'].search_read(
+            remote_hotel_reservation_ids = noderpc.env['hotel.reservation'].search(
                 [('checkout', self.migration_date_operator, self.migration_date_d)],
-                ['folio_id'],
                 order='id ASC',  # assume splitted parents reservation has always lesser id
             )
             _logger.info("Migrating 'hotel.reservation'...")
@@ -772,7 +771,7 @@ class MigratedHotel(models.Model):
                              'create_uid',
                              'last_updated_res',
                              ],
-                        )
+                        )[0]
                         hotel_folio_id = self.env['hotel.folio'].search([
                             ('remote_id', '=', rpc_hotel_reservation['folio_id'][0])
                         ]).id or None
