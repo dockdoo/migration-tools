@@ -1101,7 +1101,7 @@ class MigratedHotel(models.Model):
     def _prepare_invoice_remote_data(self, account_invoice, res_users_map_ids, noderpc):
         # search res_users ids
         remote_id = account_invoice['user_id'] and account_invoice['user_id'][0]
-        res_user_id = remote_id and res_users_map_ids.get(remote_id)
+        res_user_id = remote_id and res_users_map_ids.get(remote_id) or self._context.get('uid', self._uid)
 
         # prepare partner_id related field
         default_res_partner = self.env['res.partner'].search([
