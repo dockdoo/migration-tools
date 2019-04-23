@@ -2,7 +2,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 import logging
-import urllib
+import urllib.error
 import odoorpc.odoo
 from odoo.exceptions import ValidationError
 from odoo import models, fields, api
@@ -58,17 +58,17 @@ class MigratedHotel(models.Model):
             return hotel_id
 
     @api.multi
-    def check_vat(self, VAT, country_id):
+    def check_vat(self, vat, country_id):
         res_partner = self.env['res.partner']
         # quick and partial off-line checksum validation
         check_func = res_partner.simple_vat_check
         # check with country code as prefix of the TIN
-        vat_country, vat_number = res_partner._split_vat(VAT)
+        vat_country, vat_number = res_partner._split_vat(vat)
         if not check_func(vat_country, vat_number):
             # if fails, check with country code from country
             country_code = self.env['res.country'].browse(country_id).code
             if country_code:
-                if not check_func(country_code.lower(), VAT):
+                if not check_func(country_code.lower(), vat):
                     return False
         return True
 
@@ -86,16 +86,16 @@ class MigratedHotel(models.Model):
         category_ids = remote_ids and [category_map_ids.get(r) for r in remote_ids] or None
         # prepare parent_id related field
         parent_id = rpc_res_partner['parent_id']
-        VAT =  rpc_res_partner['vat']
+        vat = rpc_res_partner['vat']
         if parent_id:
             parent_id = self.env['res.partner'].search([
                 ('remote_id', '=', parent_id[0])
             ]).id
-            VAT = ''
+            vat = ''
 
         comment = rpc_res_partner['comment'] or ''
-        if VAT and not self.check_vat(VAT, country_id):
-            check_vat_msg = 'Invalid VAT number ' + VAT + ' for this partner ' + rpc_res_partner['name']
+        if vat and not self.check_vat(vat, country_id):
+            check_vat_msg = 'Invalid VAT number ' + vat + ' for this partner ' + rpc_res_partner['name']
             migrated_log = self.env['migrated.log'].create({
                 'name': check_vat_msg,
                 'date_time': fields.Datetime.now(),
@@ -106,7 +106,7 @@ class MigratedHotel(models.Model):
             _logger.warning('res.partner with ID remote: [%s] LOG #%s: (%s)',
                             rpc_res_partner['id'], migrated_log.id, check_vat_msg)
             comment = check_vat_msg + "\n" + comment
-            VAT = False
+            vat = False
 
         # TODO: prepare child_ids related field
         return {
@@ -137,7 +137,7 @@ class MigratedHotel(models.Model):
             'category_id': category_ids and [[6, False, category_ids]] or None,
             'unconfirmed': True,
             'parent_id': parent_id,
-            'vat': VAT,
+            'vat': vat,
         }
 
     @api.multi
@@ -248,7 +248,7 @@ class MigratedHotel(models.Model):
                             ).create(vals)
 
                         _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                         self._uid, migrated_res_partner.id, remote_res_partner_id)
+                                     self._uid, migrated_res_partner.id, remote_res_partner_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
@@ -296,7 +296,7 @@ class MigratedHotel(models.Model):
                             ).create(vals)
 
                         _logger.info('User #%s migrated res.partner with ID [local, remote]: [%s, %s]',
-                                         self._uid, migrated_res_partner.id, remote_res_partner_id)
+                                     self._uid, migrated_res_partner.id, remote_res_partner_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
@@ -1137,7 +1137,7 @@ class MigratedHotel(models.Model):
                 'quantity': invoice_line['quantity'],
                 'discount': invoice_line['discount'],
                 'uom_id': invoice_line['uom_id'] and invoice_line['uom_id'][0] or 1,
-                'invoice_line_tax_ids': [[6, False, [invoice_line_tax_ids or 59]]],  # 10% (services) as defaults default
+                'invoice_line_tax_ids': [[6, False, [invoice_line_tax_ids or 59]]],  # 10% (services) as default
             }))
 
         folio_ids = self.env['hotel.folio'].search([
@@ -1254,7 +1254,7 @@ class MigratedHotel(models.Model):
                         'model': 'invoice',
                         'remote_id': remote_account_invoice_id,
                     })
-                    _logger.error('Remote account.invoioce with ID remote: [%s] with ERROR LOG #%s: (%s)',
+                    _logger.error('Remote account.invoice with ID remote: [%s] with ERROR LOG #%s: (%s)',
                                   remote_account_invoice_id, migrated_log.id, err)
                     continue
 
