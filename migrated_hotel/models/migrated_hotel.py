@@ -1142,7 +1142,7 @@ class MigratedHotel(models.Model):
 
         folio_ids = self.env['hotel.folio'].search([
             ('remote_id', 'in', account_invoice['folio_ids'])
-        ]).ids
+        ]).ids or None
 
         vals = {
             'remote_id': account_invoice['id'],
@@ -1154,7 +1154,7 @@ class MigratedHotel(models.Model):
             'date_invoice': account_invoice['date_invoice'],
             'type': 'out_invoice',
             'reference': False,
-            'folio_ids': [[6, False, [folio_ids]]],
+            'folio_ids': folio_ids and [[6, False, folio_ids]] or None,
             # [193, '430000 Clientes (euros)']
             'account_id': account_invoice['account_id'] and account_invoice['account_id'][0] or 193,
             'partner_id': res_partner_id,
