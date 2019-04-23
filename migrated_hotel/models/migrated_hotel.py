@@ -4,7 +4,7 @@
 import logging
 import urllib
 import odoorpc.odoo
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import ValidationError
 from odoo import models, fields, api
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT
 
@@ -62,10 +62,10 @@ class MigratedHotel(models.Model):
         res_partner = self.env['res.partner']
         # quick and partial off-line checksum validation
         check_func = res_partner.simple_vat_check
-        #check with country code as prefix of the TIN
+        # check with country code as prefix of the TIN
         vat_country, vat_number = res_partner._split_vat(VAT)
         if not check_func(vat_country, vat_number):
-            #if fails, check with country code from country
+            # if fails, check with country code from country
             country_code = self.env['res.country'].browse(country_id).code
             if country_code:
                 if not check_func(country_code.lower(), VAT):
@@ -74,7 +74,7 @@ class MigratedHotel(models.Model):
 
     @api.multi
     def _prepare_partner_remote_data(self, rpc_res_partner, country_map_ids,
-                             country_state_map_ids, category_map_ids):
+                                     country_state_map_ids, category_map_ids):
         # prepare country_id related field
         remote_id = rpc_res_partner['country_id'] and rpc_res_partner['country_id'][0]
         country_id = remote_id and country_map_ids.get(remote_id) or None
@@ -104,7 +104,7 @@ class MigratedHotel(models.Model):
                 'remote_id': rpc_res_partner['id'],
             })
             _logger.warning('res.partner with ID remote: [%s] LOG #%s: (%s)',
-                          rpc_res_partner['id'], migrated_log.id, check_vat_msg)
+                            rpc_res_partner['id'], migrated_log.id, check_vat_msg)
             comment = check_vat_msg + "\n" + comment
             VAT = False
 
@@ -817,8 +817,30 @@ class MigratedHotel(models.Model):
             raise ValidationError(err)
 
         try:
-            hotel_folios = self.env['hotel.folio'].search([])
+            # prepare services of interest
+            _logger.info("Preparing 'hotel.service' of interest...")
+            remote_hotel_reservation_ids = noderpc.env['hotel.reservation'].search_read(
+                [('checkout', self.migration_date_operator, self.migration_date_d)],
+                ['folio_id']
+            )
+            remote_ids = [x['folio_id'][0] for x in remote_hotel_reservation_ids]
+            # remove any duplicate values
+            remote_hotel_folio_ids = list(dict.fromkeys(remote_ids))
+            # some folios have no reservations but only services and it is expected to happens for folios before D-date
+            if self.migration_date_operator == '<':
+                remote_hotel_folio_extra_ids = noderpc.env['hotel.folio'].search([
+                    ('room_lines', '=', False)
+                ]) or []
+                remote_hotel_folio_ids = list(set().union(
+                    remote_hotel_folio_ids, remote_hotel_folio_extra_ids
+                ))
+
             _logger.info("Migrating 'hotel.service'...")
+            remote_hotel_service_ids = noderpc.env['hotel.service.line'].search([
+                ('folio_id', 'in', remote_hotel_folio_ids),
+                 ],
+                order='id ASC'
+            )
             # disable mail feature to speed-up migration
             context_no_mail = {
                 'tracking_disable': True,
@@ -826,85 +848,71 @@ class MigratedHotel(models.Model):
                 'mail_create_nolog': True,
                 'connector_no_export': True,
             }
-            for hotel_folio in hotel_folios:
+            for remote_hotel_service_id in remote_hotel_service_ids:
                 try:
-                    _logger.info('User #%s started migration of services for hotel.folio with remote ID: [%s]',
-                                 self._uid, hotel_folio.remote_id)
+                    migrated_hotel_service = self.env['hotel.service'].search([
+                        ('remote_id', '=', remote_hotel_service_id)
+                    ]) or None
+                    if not migrated_hotel_service:
+                        _logger.info('User #%s started migration of hotel.service with remote ID: [%s]',
+                                     self._uid, remote_hotel_service_id)
 
-                    rpc_hotel_folio = noderpc.env['hotel.folio'].search_read(
-                        [('id', '=', hotel_folio.remote_id)],
-                        ['service_lines'],
-                    )[0]
-                    # prepare service_lines related field
-                    remote_ids = rpc_hotel_folio['service_lines'] and rpc_hotel_folio['service_lines']
-                    hotel_folio_services = noderpc.env['hotel.service.line'].search_read(
-                        [('id', 'in', remote_ids)],
-                        ['name',
-                         'product_id',
-                         'product_uom_qty',
-                         'price_unit',
-                         'discount',
-                         'channel_type',
-                         'ser_room_line',
-                         'ser_checkin',
-                         'service_line_id',
-                         ]
-                    )
-                    for service in hotel_folio_services:
-                        try:
-                            ser_room_line = service['ser_room_line'] and service['ser_room_line'][0] or None
-                            # services may or may not be associated to a reservation
-                            if ser_room_line:
-                                ser_room_line = self.env['hotel.reservation'].search([
-                                    ('remote_id', '=', ser_room_line)
-                                ]).id or None
+                        hotel_service = noderpc.env['hotel.service.line'].search_read(
+                            [('id', '=', remote_hotel_service_id)],
+                            ['folio_id',
+                             'name',
+                             'product_id',
+                             'product_uom_qty',
+                             'price_unit',
+                             'discount',
+                             'channel_type',
+                             'ser_room_line',
+                             'ser_checkin',
+                             'service_line_id',
+                             ]
+                        )[0]
 
-                            migrated_service_line = self.env['hotel.service.line'].search([
-                                ('remote_id', '=', service['id'])
+                        ser_room_line = hotel_service['ser_room_line'] and hotel_service['ser_room_line'][0] or None
+                        # services may or may not be associated to a reservation
+                        if ser_room_line:
+                            ser_room_line = self.env['hotel.reservation'].search([
+                                ('remote_id', '=', ser_room_line)
+                            ]).id or None
+
+                        # reservations before D-date are migrated with Odoo 10 products
+                        service_line_cmds = [(0, False, {
+                            'remote_id': hotel_service['id'],
+                            'product_id': self.env['product.product'].search([
+                                ('remote_id', '=', hotel_service['product_id'][0])
+                            ]).id or None,
+                            'ser_room_line': ser_room_line,
+                            'name': hotel_service['name'],
+                            'product_qty': hotel_service['product_uom_qty'],
+                            'price_unit': hotel_service['price_unit'],
+                            'discount': hotel_service['discount'],
+                            'channel_type': hotel_service['channel_type'] or 'door',
+                        })]
+
+                        hotel_folio = self.env['hotel.folio'].search([
+                                ('remote_id', '=', hotel_service['folio_id'][0])
                             ]) or None
+                        hotel_folio.with_context(
+                            context_no_mail
+                        ).write({'service_ids': service_line_cmds})
 
-                            if not migrated_service_line:
-                                # reservations before D-date are migrated with Odoo 10 products
-                                service_line_cmds = [(0, False, {
-                                    'remote_id': service['id'],
-                                    'product_id': self.env['product.product'].search([
-                                        ('remote_id', '=', service['product_id'][0])
-                                    ]).id or None,
-                                    'ser_room_line': ser_room_line,
-                                    'name': service['name'],
-                                    'product_qty': service['product_uom_qty'],
-                                    'price_unit': service['price_unit'],
-                                    'discount': service['discount'],
-                                    'channel_type': service['channel_type'] or 'door',
-                                })]
-                                hotel_folio.with_context(
-                                    context_no_mail
-                                ).write({'service_ids': service_line_cmds})
-                        except (ValueError, ValidationError, Exception) as err:
-                            migrated_log = self.env['migrated.log'].create({
-                                'name': err,
-                                'date_time': fields.Datetime.now(),
-                                'migrated_hotel_id': self.id,
-                                'model': 'service',
-                                'remote_id': service['id'],
-                            })
-                            _logger.error('hotel.service.line with ID remote: [%s] with LOG #%s: (%s)',
-                                          service['id'], migrated_log.id, err)
-                            continue
-
-                    _logger.info('User #%s migrated services for hotel.folio with remote ID: [%s]',
-                                 self._uid, hotel_folio.remote_id)
+                        _logger.info('User #%s migrated hotel.service with remote ID: [%s]',
+                                     self._uid, remote_hotel_service_id)
 
                 except (ValueError, ValidationError, Exception) as err:
                     migrated_log = self.env['migrated.log'].create({
                         'name': err,
                         'date_time': fields.Datetime.now(),
                         'migrated_hotel_id': self.id,
-                        'model': 'folio',
-                        'remote_id': hotel_folio.remote_id,
+                        'model': 'service',
+                        'remote_id': remote_hotel_service_id,
                     })
-                    _logger.error('hotel.folio with ID remote: [%s] with LOG #%s: (%s)',
-                                  hotel_folio.remote_id, migrated_log.id, err)
+                    _logger.error('hotel.service with ID remote: [%s] with LOG #%s: (%s)',
+                                  remote_hotel_service_id, migrated_log.id, err)
                     continue
 
         except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
@@ -1047,7 +1055,7 @@ class MigratedHotel(models.Model):
                     # prepare related payment
                     remote_payment_id = payment_return_line.move_line_ids.payment_id.id
                     account_payment = self.env['account.payment'].search([
-                        ('remote_id','=', remote_payment_id)
+                        ('remote_id', '=', remote_payment_id)
                     ]) or None
                     account_move_lines = account_payment.move_line_ids.filtered(
                         lambda x: (x.account_id.internal_type == 'receivable')
@@ -1129,7 +1137,7 @@ class MigratedHotel(models.Model):
                 'quantity': invoice_line['quantity'],
                 'discount': invoice_line['discount'],
                 'uom_id': invoice_line['uom_id'] and invoice_line['uom_id'][0] or 1,
-                'invoice_line_tax_ids': [[6, False, [invoice_line_tax_ids or 59]]], # 10% (services) as defaults default
+                'invoice_line_tax_ids': [[6, False, [invoice_line_tax_ids or 59]]],  # 10% (services) as defaults default
             }))
 
         folio_ids = self.env['hotel.folio'].search([
