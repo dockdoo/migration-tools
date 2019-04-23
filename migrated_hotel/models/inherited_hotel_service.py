@@ -4,9 +4,9 @@
 from odoo import models, fields, api
 
 
-class HotelServiceLine(models.Model):
+class HotelService(models.Model):
 
-    _inherit = 'hotel.service.line'
+    _inherit = 'hotel.service'
 
     remote_id = fields.Integer(require=True, copy=False, readonly=True,
             help="ID of the target record in the previous version")
