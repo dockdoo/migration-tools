@@ -913,7 +913,7 @@ class MigratedHotel(models.Model):
             noderpc.logout()
 
     @api.multi
-    def action_migrate_payment(self):
+    def action_migrate_payments(self):
         self.ensure_one()
         try:
             noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
