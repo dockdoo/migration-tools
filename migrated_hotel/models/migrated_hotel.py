@@ -233,7 +233,8 @@ class MigratedHotel(models.Model):
             for remote_res_partner_id in remote_partner_ids:
                 try:
                     migrated_res_partner = self.env['res.partner'].search([
-                        ('remote_id', '=', remote_res_partner_id)
+                        ('remote_id', '=', remote_res_partner_id),
+                        '|', ('active', '=', True), ('active', '=', False),
                     ]) or None
 
                     if not migrated_res_partner:
@@ -281,7 +282,8 @@ class MigratedHotel(models.Model):
             for remote_res_partner_id in remote_partner_ids:
                 try:
                     migrated_res_partner = self.env['res.partner'].search([
-                        ('remote_id', '=', remote_res_partner_id)
+                        ('remote_id', '=', remote_res_partner_id),
+                        '|', ('active', '=', True), ('active', '=', False),
                     ]) or None
 
                     if not migrated_res_partner:
@@ -703,7 +705,7 @@ class MigratedHotel(models.Model):
             remote_ids = noderpc.env['hotel.room'].search([])
             remote_hotel_rooms = noderpc.env['hotel.room'].browse(remote_ids)
             room_map_ids = {}
-            # TODO: may be improved with search_read product_id ?
+            #
             for remote_hotel_room in remote_hotel_rooms:
                 remote_xml_id = remote_hotel_room.get_external_id()
                 value = list(remote_xml_id.values())[0]
@@ -1025,7 +1027,7 @@ class MigratedHotel(models.Model):
                         'model': 'payment',
                         'remote_id': remote_account_payment_id,
                     })
-                    _logger.error('payment.return with ID remote: [%s] with LOG #%s: (%s)',
+                    _logger.error('account.payment with ID remote: [%s] with LOG #%s: (%s)',
                                   remote_account_payment_id, migrated_log.id, err)
                     continue
 
@@ -1212,7 +1214,6 @@ class MigratedHotel(models.Model):
                     migrated_account_invoice = self.env['account.invoice'].search([
                         ('remote_id', '=', remote_account_invoice_id)
                     ]) or None
-
                     if not migrated_account_invoice:
                         _logger.info('User #%s started migration of account.invoice with remote ID: [%s]',
                                      self._uid, remote_account_invoice_id)
