@@ -1132,6 +1132,12 @@ class MigratedHotel(models.Model):
             ]).main_partner_id.id or None
         res_partner_id = res_partner_id or default_res_partner.id
 
+        # search related refund_invoice_id
+        if account_invoice['refund_invoice_id']:
+            refund_invoice_id = self.env['account.invoice'].search([
+                ('remote_id', '=', account_invoice['refund_invoice_id'][0])
+            ]) or None
+
         remote_ids = account_invoice['invoice_line_ids'] and account_invoice['invoice_line_ids']
         invoice_lines = noderpc.env['account.invoice.line'].search_read(
             [('id', 'in', remote_ids)])
@@ -1188,7 +1194,8 @@ class MigratedHotel(models.Model):
             'display_name': account_invoice['display_name'],
             'origin': account_invoice['name'],
             'date_invoice': account_invoice['date_invoice'],
-            'type': 'out_invoice',
+            'type': account_invoice['type'],
+            'refund_invoice_id': account_invoice['refund_invoice_id'] and refund_invoice_id,
             'reference': False,
             # [193, '430000 Clientes (euros)']
             'account_id': account_invoice['account_id'] and account_invoice['account_id'][0] or 193,
@@ -1234,9 +1241,10 @@ class MigratedHotel(models.Model):
             }
             for remote_account_invoice_id in remote_account_invoice_ids:
                 try:
-                    migrated_account_invoice = self.env['account.invoice'].search([
-                        ('remote_id', '=', remote_account_invoice_id)
-                    ]) or None
+                    migrated_account_invoice = self.env['account.invoice'].search(
+                        [('remote_id', '=', remote_account_invoice_id)],
+                        order='id ASC'  # ensure refunded invoices are retrieved after the normal invoice
+                    ) or None
                     if not migrated_account_invoice:
                         _logger.info('User #%s started migration of account.invoice with remote ID: [%s]',
                                      self._uid, remote_account_invoice_id)
