@@ -187,6 +187,7 @@ class MigratedHotel(models.Model):
 
             # prepare partners of interest
             _logger.info("Preparing 'res.partners' of interest...")
+
             folio_ids = noderpc.env['hotel.folio'].search_read(
                 [],
                 ['partner_id']
@@ -197,6 +198,11 @@ class MigratedHotel(models.Model):
                 ['partner_id']
             )
             partners_cardex_set = [x['partner_id'][0] for x in cardex_ids]
+            payment_ids = noderpc.env['account.payment'].search_read(
+                [],
+                ['partner_id']
+            )
+            partners_payment_set = [x['partner_id'][0] for x in payment_ids]
             invoice_ids = noderpc.env['account.invoice'].search_read(
                 [],
                 ['partner_id']
@@ -206,7 +212,8 @@ class MigratedHotel(models.Model):
             remote_partner_set_ids = list(set().union(
                 partners_folios_set,
                 partners_cardex_set,
-                partners_invoice_set
+                partners_payment_set,
+                partners_invoice_set,
             ))
             # First, import remote partners without contacts (parent_id is not set)
             _logger.info("Migrating 'res.partners' without parent_id...")
@@ -1050,10 +1057,11 @@ class MigratedHotel(models.Model):
             }
             for payment_return_id in remote_payment_return_ids:
                 try:
-                    payment_return_line = noderpc.env['payment.return'].browse(payment_return_id).line_ids
+                    remote_payment_return = noderpc.env['payment.return'].browse(payment_return_id)
+                    remote_payment_return_line = remote_payment_return.line_ids
 
                     # prepare related payment
-                    remote_payment_id = payment_return_line.move_line_ids.payment_id.id
+                    remote_payment_id = remote_payment_return_line.move_line_ids.payment_id.id
                     account_payment = self.env['account.payment'].search([
                         ('remote_id', '=', remote_payment_id)
                     ]) or None
@@ -1063,11 +1071,13 @@ class MigratedHotel(models.Model):
                     line_ids_vals = {
                         'move_line_ids': [(6, False, [x.id for x in account_move_lines])],
                         'partner_id': account_payment.partner_id.id,
-                        'amount': payment_return_line.amount,
-                        'reference': payment_return_line.reference,
+                        'amount': remote_payment_return_line.amount,
+                        'reference': remote_payment_return_line.reference,
                     }
                     vals = {
+                        'name': remote_payment_return.name,
                         'journal_id': account_payment.journal_id.id,
+                        'date': remote_payment_return.date,
                         'line_ids': [(0, 0, line_ids_vals)],
                     }
 
