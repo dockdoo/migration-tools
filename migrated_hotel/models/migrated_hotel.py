@@ -1138,11 +1138,39 @@ class MigratedHotel(models.Model):
         invoice_line_cmds = []
         # prepare invoice lines
         for invoice_line in invoice_lines:
+            # search for reservation in sale_order_line
+            remote_reservation_ids = noderpc.env['hotel.reservation'].search([
+                ('order_line_id', 'in', invoice_line['sale_line_ids'])
+            ]) or None
+            if remote_reservation_ids:
+                reservation_ids = self.env['hotel.reservation'].search([
+                    ('remote_id', 'in', remote_reservation_ids)
+                ]).ids or None
+                reservation_ids_cmds = reservation_ids and [[6, False, reservation_ids]] or None
+                # The night is dark and full of terrors
+                reservation_line_ids = self.env['hotel.reservation.line'].search([
+                    ('reservation_id', 'in', reservation_ids)
+                ]).ids
+                reservation_line_ids_cmds = reservation_line_ids and [[6, False, reservation_line_ids]] or None
+
+            # search for services in sale_order_line
+            remote_service_ids = noderpc.env['hotel.service.line'].search([
+                ('service_line_id', 'in', invoice_line['sale_line_ids'])
+            ]) or None
+            if remote_service_ids:
+                service_ids = self.env['hotel.service'].search([
+                    ('remote_id', 'in', remote_service_ids)
+                ]).ids or None
+                service_ids_cmds = service_ids and [[6, False, service_ids]] or None
+
             # take invoice line taxes
             invoice_line_tax_ids = invoice_line['invoice_line_tax_ids'] and invoice_line['invoice_line_tax_ids'][0] or False
             invoice_line_cmds.append((0, False, {
                 'name': invoice_line['name'],
                 'origin': invoice_line['origin'],
+                'reservation_ids': remote_reservation_ids and reservation_ids_cmds,
+                'reservation_line_ids': remote_reservation_ids and reservation_line_ids_cmds,
+                'service_ids': remote_service_ids and service_ids_cmds,
                 # [480, '700000 Ventas de mercaderías en España']
                 'account_id': invoice_line['account_id'] and invoice_line['account_id'][0] or 480,
                 'price_unit': invoice_line['price_unit'],
@@ -1151,10 +1179,6 @@ class MigratedHotel(models.Model):
                 'uom_id': invoice_line['uom_id'] and invoice_line['uom_id'][0] or 1,
                 'invoice_line_tax_ids': [[6, False, [invoice_line_tax_ids or 59]]],  # 10% (services) as default
             }))
-
-        folio_ids = self.env['hotel.folio'].search([
-            ('remote_id', 'in', account_invoice['folio_ids'])
-        ]).ids or None
 
         vals = {
             'remote_id': account_invoice['id'],
@@ -1166,7 +1190,6 @@ class MigratedHotel(models.Model):
             'date_invoice': account_invoice['date_invoice'],
             'type': 'out_invoice',
             'reference': False,
-            'folio_ids': folio_ids and [[6, False, folio_ids]] or None,
             # [193, '430000 Clientes (euros)']
             'account_id': account_invoice['account_id'] and account_invoice['account_id'][0] or 193,
             'partner_id': res_partner_id,
