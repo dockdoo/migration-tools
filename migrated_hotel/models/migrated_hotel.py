@@ -70,6 +70,8 @@ class MigratedHotel(models.Model):
             if country_code:
                 if not check_func(country_code.lower(), vat):
                     return False
+            else:
+                return False
         return True
 
     @api.multi
