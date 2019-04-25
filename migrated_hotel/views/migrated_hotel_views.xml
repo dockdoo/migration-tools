@@ -101,6 +101,13 @@
                                             confirm="Please disable Check Chronology in Customer Invoices. Do you want to proceed?"/>
                                 </group>
                                 <group>
+                                    <button name="action_clean_up"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Final clean-up"
+                                            confirm="Archive products migrated. Do you want to proceed?"/>
+                                </group>
+                                <group>
                                     <button name="action_migrate_debug"
                                             type="object"
                                             class="oe_highlight"
