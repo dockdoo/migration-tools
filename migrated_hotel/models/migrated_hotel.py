@@ -223,7 +223,7 @@ class MigratedHotel(models.Model):
                 ('user_ids', '=', False),
                 ('create_date', self.migration_date_operator, self.migration_date_d),
                 '|', ('active', '=', True), ('active', '=', False),
-            ])
+            ], order='id ASC')
             # disable mail feature to speed-up migration
             context_no_mail = {
                 'tracking_disable': True,
@@ -278,7 +278,7 @@ class MigratedHotel(models.Model):
                 ('user_ids', '=', False),
                 ('create_date', self.migration_date_operator, self.migration_date_d),
                 '|', ('active', '=', True), ('active', '=', False),
-            ])
+            ], order='id ASC')
             for remote_res_partner_id in remote_partner_ids:
                 try:
                     migrated_res_partner = self.env['res.partner'].search([
@@ -847,9 +847,7 @@ class MigratedHotel(models.Model):
             _logger.info("Migrating 'hotel.service'...")
             remote_hotel_service_ids = noderpc.env['hotel.service.line'].search([
                 ('folio_id', 'in', remote_hotel_folio_ids),
-                 ],
-                order='id ASC'
-            )
+            ], order='id ASC')
             # disable mail feature to speed-up migration
             context_no_mail = {
                 'tracking_disable': True,
@@ -953,8 +951,7 @@ class MigratedHotel(models.Model):
             _logger.info("Preparing 'account.payment' of interest...")
             remote_account_payment_ids = noderpc.env['account.payment'].search(
                 [],
-                order='id ASC'
-            )
+                order='id ASC')
             # disable mail feature to speed-up migration
             context_no_mail = {
                 'tracking_disable': True,
