@@ -194,22 +194,34 @@ class MigratedHotel(models.Model):
                 [],
                 ['partner_id']
             )
-            partners_folios_set = [x['partner_id'][0] for x in folio_ids]
+            partners_folios_set = []
+            if folio_ids:
+                partners_folios_set = [x['partner_id'][0] for x in folio_ids]
+
             cardex_ids = noderpc.env['cardex'].search_read(
                 [],
                 ['partner_id']
             )
-            partners_cardex_set = [x['partner_id'][0] for x in cardex_ids]
+            partners_cardex_set = []
+            if cardex_ids:
+                partners_cardex_set = [x['partner_id'][0] for x in cardex_ids]
+
             payment_ids = noderpc.env['account.payment'].search_read(
                 [],
                 ['partner_id']
             )
-            partners_payment_set = [x['partner_id'][0] for x in payment_ids]
+            partners_payment_set = []
+            if payment_ids:
+                partners_payment_set = [x['partner_id'][0] for x in payment_ids]
+
             invoice_ids = noderpc.env['account.invoice'].search_read(
                 [],
                 ['partner_id']
             )
-            partners_invoice_set = [x['partner_id'][0] for x in invoice_ids]
+            partners_invoice_set = []
+            if invoice_ids:
+                partners_invoice_set = [x['partner_id'][0] for x in invoice_ids]
+
             # set of remote partners of interest
             remote_partner_set_ids = list(set().union(
                 partners_folios_set,
