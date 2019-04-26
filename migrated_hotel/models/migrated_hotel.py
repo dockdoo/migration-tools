@@ -1230,7 +1230,11 @@ class MigratedHotel(models.Model):
                 res_users_map_ids.update({record.id: res_users_id})
 
             _logger.info("Preparing 'account.invoice' of interest...")
-            remote_account_invoice_ids = noderpc.env['account.invoice'].search([])
+            remote_account_invoice_ids = noderpc.env['account.invoice'].search(
+                [('number', 'not in', [False, ' '])],
+                order='id ASC'  # ensure refunded invoices are retrieved after the normal invoice
+            )
+
             _logger.info("Migrating 'account.invoice'...")
             # disable mail feature to speed-up migration
             context_no_mail = {
@@ -1241,8 +1245,7 @@ class MigratedHotel(models.Model):
             for remote_account_invoice_id in remote_account_invoice_ids:
                 try:
                     migrated_account_invoice = self.env['account.invoice'].search(
-                        [('remote_id', '=', remote_account_invoice_id)],
-                        order='id ASC'  # ensure refunded invoices are retrieved after the normal invoice
+                        [('remote_id', '=', remote_account_invoice_id)]
                     ) or None
                     if not migrated_account_invoice:
                         _logger.info('User #%s started migration of account.invoice with remote ID: [%s]',
