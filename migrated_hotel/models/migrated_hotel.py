@@ -1132,16 +1132,18 @@ class MigratedHotel(models.Model):
         res_partner_id = res_partner_id or default_res_partner.id
 
         # search related refund_invoice_id
+        refund_invoice_id = None
         if account_invoice['refund_invoice_id']:
             refund_invoice_id = self.env['account.invoice'].search([
                 ('remote_id', '=', account_invoice['refund_invoice_id'][0])
-            ]) or None
+            ]).id or None
 
         remote_ids = account_invoice['invoice_line_ids'] and account_invoice['invoice_line_ids']
         invoice_lines = noderpc.env['account.invoice.line'].search_read(
             [('id', 'in', remote_ids)])
         invoice_line_cmds = []
         # prepare invoice lines
+        reservation_ids_cmds = reservation_line_ids_cmds = service_ids_cmds = None
         for invoice_line in invoice_lines:
             # search for reservation in sale_order_line
             remote_reservation_ids = noderpc.env['hotel.reservation'].search([
@@ -1191,7 +1193,7 @@ class MigratedHotel(models.Model):
             'invoice_number': account_invoice['invoice_number'],
             'name': account_invoice['name'],
             'display_name': account_invoice['display_name'],
-            'origin': account_invoice['name'],
+            'origin': account_invoice['origin'],
             'date_invoice': account_invoice['date_invoice'],
             'type': account_invoice['type'],
             'refund_invoice_id': account_invoice['refund_invoice_id'] and refund_invoice_id,
