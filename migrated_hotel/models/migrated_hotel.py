@@ -1279,7 +1279,9 @@ class MigratedHotel(models.Model):
                             context_no_mail
                         ).create(vals)
                         # this function require a valid vat number in the associated partner_id
-                        migrated_account_invoice.action_invoice_open()
+                        migrated_account_invoice.with_context(
+                            {'validate_vat_number': False}
+                        ).action_invoice_open()
                         #
                         payment_ids = self.env['account.payment'].search([
                             ('remote_id', 'in', rpc_account_invoice['payment_ids'])
