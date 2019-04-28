@@ -1245,7 +1245,7 @@ class MigratedHotel(models.Model):
 
             _logger.info("Preparing 'account.invoice' of interest...")
             remote_account_invoice_ids = noderpc.env['account.invoice'].search(
-                [('number', 'not in', [False, ' '])],
+                [('number', 'not in', [False])],
                 order='id ASC'  # ensure refunded invoices are retrieved after the normal invoice
             )
 
@@ -1268,6 +1268,9 @@ class MigratedHotel(models.Model):
                         rpc_account_invoice = noderpc.env['account.invoice'].search_read(
                             [('id', '=', remote_account_invoice_id)],
                         )[0]
+
+                        if rpc_account_invoice['number'].strip() == '':
+                            continue
 
                         vals = self._prepare_invoice_remote_data(
                             rpc_account_invoice,
