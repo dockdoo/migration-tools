@@ -1371,6 +1371,13 @@ class MigratedHotel(models.Model):
         hotel.action_migrate_invoices()
 
     @api.model
+    def cron_migrate_account_models(self):
+        hotel = self.env[self._name].search([])
+        hotel.action_migrate_payments()
+        hotel.action_migrate_payment_returns()
+        hotel.action_migrate_invoices()
+
+    @api.model
     def cron_migrate_hotel(self):
         self.cron_migrate_partners()
         self.cron_migrate_folios()
