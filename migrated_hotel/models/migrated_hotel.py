@@ -1333,6 +1333,7 @@ class MigratedHotel(models.Model):
         product_product = self.env['product.product'].search([
             ('remote_id', '>', 0)
         ])
+        product_product.product_tmpl_id.write({'active': False})
         product_product.write({'active': False})
         # disable specific closure_reason created for migration ¿?
 
