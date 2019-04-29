@@ -652,7 +652,7 @@ class MigratedHotel(models.Model):
             'state': reservation['state'],
             'cancelled_reason': reservation['cancelled_reason'],
             'out_service_description': reservation['out_service_description'],
-            'adults': reservation['adults'],
+            'adults': min(reservation['adults'], self.env['hotel.room'].browse(room_id).capacity),
             'children': reservation['children'],
             'splitted': reservation['splitted'],
             'overbooking': reservation['overbooking'],
