@@ -706,7 +706,9 @@ class MigratedHotel(models.Model):
 
             # prepare hotel.room.type ids
             _logger.info("Mapping local with remote 'hotel.room.type' ids...")
-            remote_ids = noderpc.env['hotel.virtual.room'].search([])
+            remote_ids = noderpc.env['hotel.virtual.room'].search([
+                '|', ('active', '=', True), ('active', '=', False)
+            ])
             remote_xml_ids = noderpc.env['hotel.virtual.room'].browse(
                 remote_ids).get_external_id()
             room_type_map_ids = {}
