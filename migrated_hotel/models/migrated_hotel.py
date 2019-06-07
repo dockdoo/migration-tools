@@ -1343,6 +1343,7 @@ class MigratedHotel(models.Model):
                 ) or False
 
                 if rpc_record:
+                    rpc_record = rpc_record[0]
                     create_uid = rpc_record['create_uid'] and rpc_record['create_uid'][0] or False
                     create_uid = create_uid and res_users_map_ids.get(create_uid) or self._uid
                     create_date = rpc_record['create_date'] and rpc_record['create_date'] or record.create_date
