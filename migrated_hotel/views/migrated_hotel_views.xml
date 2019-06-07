@@ -101,6 +101,13 @@
                                             confirm="Please disable Check Chronology in Customer Invoices. Do you want to proceed?"/>
                                 </group>
                                 <group>
+                                    <button name="action_update_special_field_names"
+                                            type="object"
+                                            class="oe_highlight"
+                                            string="Update special field names"
+                                            confirm="Update special field names __after__ migrating all data. Do you want to proceed?"/>
+                                </group>
+                                <group>
                                     <button name="action_clean_up"
                                             type="object"
                                             class="oe_highlight"

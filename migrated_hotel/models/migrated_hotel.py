@@ -1329,6 +1329,75 @@ class MigratedHotel(models.Model):
             noderpc.logout()
 
     @api.multi
+    def _update_special_field_names(self, model, model_log_code, res_users_map_ids, noderpc):
+        # prepare record ids
+        _logger.info("Updating '%s' special field names..", model)
+        record_ids = self.env[model].search([
+            ('remote_id', '>', 0)
+        ])
+        for record in record_ids:
+            try:
+                rpc_record = noderpc.env[model].search_read(
+                    [('id', '=', record.remote_id)],
+                    ['create_uid', 'create_date'],
+                )[0]
+                create_uid = rpc_record['create_uid'] and rpc_record['create_uid'][0] or False
+                create_uid = create_uid and res_users_map_ids.get(create_uid) or self._uid
+                create_date = rpc_record['create_date'] and rpc_record['create_date'] or rpc_record.create_date
+
+                self.env.cr.execute('''UPDATE ''' + self.env[model]._table + '''
+                                       SET create_uid = %s, create_date = %s WHERE id = %s''',
+                                    (create_uid, create_date, record.id))
+
+                _logger.info('User #%s has updated %s with ID [local, remote]: [%s, %s]',
+                             self._uid, model, record.id, record.remote_id)
+
+            except (ValueError, ValidationError, Exception) as err:
+                migrated_log = self.env['migrated.log'].create({
+                    'name': err,
+                    'date_time': fields.Datetime.now(),
+                    'migrated_hotel_id': self.id,
+                    'model': model_log_code,
+                    'remote_id': record.remote_id,
+                })
+                _logger.error('Failed updating hotel.folio with ID [local]: [%s] with ERROR LOG #%s: (%s)',
+                              record.id, migrated_log.id, err)
+                continue
+
+    @api.multi
+    def action_update_special_field_names(self):
+        self.ensure_one()
+        try:
+            noderpc = odoorpc.ODOO(self.odoo_host, self.odoo_protocol, self.odoo_port)
+            noderpc.login(self.odoo_db, self.odoo_user, self.odoo_password)
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+
+        try:
+            # prepare res.users ids
+            _logger.info("Mapping local with remote 'res.users' ids...")
+            remote_ids = noderpc.env['res.users'].search([])
+            remote_records = noderpc.env['res.users'].browse(remote_ids)
+            res_users_map_ids = {}
+            for record in remote_records:
+                res_users_id = self.env['res.users'].search([
+                    ('login', '=', record.login),
+                ]).id or self._context.get('uid', self._uid)
+                res_users_map_ids.update({record.id: res_users_id})
+
+            self._update_special_field_names('hotel.folio', 'folio', res_users_map_ids, noderpc)
+            self._update_special_field_names('hotel.reservation', 'reservation', res_users_map_ids, noderpc)
+            self._update_special_field_names('hotel.service', 'service', res_users_map_ids, noderpc)
+            self._update_special_field_names('account.payment', 'payment', res_users_map_ids, noderpc)
+            self._update_special_field_names('account.invoice', 'invoice', res_users_map_ids, noderpc)
+
+        except (odoorpc.error.RPCError, odoorpc.error.InternalError, urllib.error.URLError) as err:
+            raise ValidationError(err)
+        else:
+            noderpc.logout()
+
+
+    @api.multi
     def action_clean_up(self):
         self.ensure_one()
         # disable Odoo 10 products
