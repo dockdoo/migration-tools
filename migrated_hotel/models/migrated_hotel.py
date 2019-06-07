@@ -1340,17 +1340,27 @@ class MigratedHotel(models.Model):
                 rpc_record = noderpc.env[model].search_read(
                     [('id', '=', record.remote_id)],
                     ['create_uid', 'create_date'],
-                )[0]
-                create_uid = rpc_record['create_uid'] and rpc_record['create_uid'][0] or False
-                create_uid = create_uid and res_users_map_ids.get(create_uid) or self._uid
-                create_date = rpc_record['create_date'] and rpc_record['create_date'] or rpc_record.create_date
+                ) or False
 
-                self.env.cr.execute('''UPDATE ''' + self.env[model]._table + '''
-                                       SET create_uid = %s, create_date = %s WHERE id = %s''',
-                                    (create_uid, create_date, record.id))
+                if rpc_record:
+                    create_uid = rpc_record['create_uid'] and rpc_record['create_uid'][0] or False
+                    create_uid = create_uid and res_users_map_ids.get(create_uid) or self._uid
+                    create_date = rpc_record['create_date'] and rpc_record['create_date'] or record.create_date
 
-                _logger.info('User #%s has updated %s with ID [local, remote]: [%s, %s]',
-                             self._uid, model, record.id, record.remote_id)
+                    self.env.cr.execute('''UPDATE ''' + self.env[model]._table + '''
+                                           SET create_uid = %s, create_date = %s WHERE id = %s''',
+                                        (create_uid, create_date, record.id))
+
+                    _logger.info('User #%s has updated %s with ID [local, remote]: [%s, %s]',
+                                 self._uid, model, record.id, record.remote_id)
+                else:
+                    self.env['migrated.log'].create({
+                        'name': 'Remote record not found!',
+                        'date_time': fields.Datetime.now(),
+                        'migrated_hotel_id': self.id,
+                        'model': model_log_code,
+                        'remote_id': record.remote_id,
+                    })
 
             except (ValueError, ValidationError, Exception) as err:
                 migrated_log = self.env['migrated.log'].create({
@@ -1458,3 +1468,8 @@ class MigratedHotel(models.Model):
         self.cron_migrate_folios()
         self.cron_migrate_reservations()
         self.cron_migrate_services()
+
+    @api.model
+    def cron_update_special_field_names(self):
+        hotel = self.env[self._name].search([])
+        hotel.action_update_special_field_names()
