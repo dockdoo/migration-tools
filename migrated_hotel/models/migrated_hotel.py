@@ -1398,7 +1398,6 @@ class MigratedHotel(models.Model):
 
             self._update_special_field_names('hotel.folio', 'folio', res_users_map_ids, noderpc)
             self._update_special_field_names('hotel.reservation', 'reservation', res_users_map_ids, noderpc)
-            self._update_special_field_names('hotel.service', 'service', res_users_map_ids, noderpc)
             self._update_special_field_names('account.payment', 'payment', res_users_map_ids, noderpc)
             self._update_special_field_names('account.invoice', 'invoice', res_users_map_ids, noderpc)
 
